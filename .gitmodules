@@ -1,0 +1,3 @@
+[submodule "tableexporter"]
+	path = tableexporter
+	url = https://github.com/Mathias83/tableexporter
