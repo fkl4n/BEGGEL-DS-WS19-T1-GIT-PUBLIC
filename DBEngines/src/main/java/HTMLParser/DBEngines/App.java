@@ -30,12 +30,14 @@ public class App {
 
 	protected static List<String[]> parseDBEngine(Set<String> urls) throws IOException, Exception {
 		List<String> columnName = new ArrayList<String>();
+		columnName.add("URLName");
 		List<String[]> table = new ArrayList<String[]>();
 		int index = 0;
 		logger.trace("Start Parsing");
 
 		for (String url : urls) {
 			String[] tableRow = new String[100];
+			tableRow[0] = extractURLName(url);
 			table.add(index++, tableRow);
 			logger.trace("Fetching %s..." + url);
 
@@ -58,10 +60,15 @@ public class App {
 
 	}
 
+	private static String extractURLName(String url) {
+		String[] split = url.split("/");
+		return split[split.length - 1];
+	}
+
 	protected static void export(List<String[]> table) throws Exception {
 		StringBuilder builder = new StringBuilder();
 		for (String[] strings : table) {
-			for (int i = 0; i < strings.length; i++) {
+			for (int i = 1; i < strings.length; i++) {
 				String CSVSeperator = ";";
 				String output = "";
 				if (Objects.nonNull(strings[i]))
@@ -103,7 +110,7 @@ public class App {
 							columnName.add(column);
 					}
 				}
-				
+
 				elementsByClass = row.getElementsByClass("value");
 				elementsByClass.addAll(row.getElementsByClass("header"));
 				if (elementsByClass.size() > 0) {
@@ -114,7 +121,7 @@ public class App {
 						}
 
 						tableRow[columnName.indexOf(column)] = extractAttribute(element);
-						
+
 					}
 				}
 
@@ -140,7 +147,7 @@ public class App {
 					if (!columnName.contains(column))
 						columnName.add(column);
 					tableRow[columnName.indexOf(column)] = " " + text.substring(0, text.indexOf(" ") + 1);
-					
+
 				}
 
 			}
@@ -172,12 +179,14 @@ public class App {
 
 		for (Element element : links) {
 			String attr = element.attr("abs:href");
-
+			/*if (dbUrls.size() > 5)
+				return dbUrls;*/
 			if (attr.startsWith("https://db-engines.com/de/system/"))
 				dbUrls.add(attr);
-		
+
 		}
 		return dbUrls;
 	}
 
+	
 }
