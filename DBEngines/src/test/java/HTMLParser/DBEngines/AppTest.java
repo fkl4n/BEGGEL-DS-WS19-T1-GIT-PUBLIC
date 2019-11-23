@@ -17,7 +17,7 @@ class AppTest {
 		Set<String> urls = new HashSet<String>();
 		urls.add("https://db-engines.com/de/system/Oracle");
 		List<String[]> parseDBEngine = App.parseDBEngine(urls);
-		assertEquals(parseDBEngine.get(0).length ,36);
+		assertEquals(parseDBEngine.get(0).length ,37);
 	}
 	
 	@Test
@@ -25,7 +25,7 @@ class AppTest {
 		Set<String> urls = new HashSet<String>();
 		urls.add("https://db-engines.com/de/system/PostgreSQL");
 		List<String[]> parseDBEngine = App.parseDBEngine(urls);
-		assertEquals(parseDBEngine.get(0).length ,36);
+		assertEquals(parseDBEngine.get(0).length ,37);
 	}
 	
 	@Test
@@ -33,13 +33,13 @@ class AppTest {
 		Set<String> urls = new HashSet<String>();
 		urls.add("https://db-engines.com/de/system/Couchbase");
 		List<String[]> parseDBEngine = App.parseDBEngine(urls);
-		assertEquals(parseDBEngine.get(0).length ,35);
+		assertEquals(parseDBEngine.get(0).length ,36);
 	}
 	
 	@Test
 	void parseDBEngineTest() throws IOException, Exception {		
 		Set<String> parseDBEngine = App.getDBs();		
-		assertEquals(parseDBEngine.size(), 392);
+		assertEquals(parseDBEngine.size(), 393);
 	}
 	
 	@Test
@@ -47,7 +47,7 @@ class AppTest {
 		Set<String> urls = new HashSet<String>();
 		urls.add("https://db-engines.com/de/system/Jackrabbit");
 		List<String[]> parseDBEngine = App.parseDBEngine(urls);
-		assertEquals(parseDBEngine.get(0).length ,11);
+		assertEquals(parseDBEngine.get(0).length ,12);
 	}
 	
 
