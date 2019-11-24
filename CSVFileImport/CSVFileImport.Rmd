@@ -1,0 +1,116 @@
+---
+title: "CSVFileImport"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+?plot(cars)
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+# Load Libraries
+```{r,  warning=FALSE,include= TRUE,echo=TRUE,results='hide', message=FALSE}
+#install.packages("dplyr")
+#install.packages("stringr")
+
+# load installed libraries 
+library(dplyr)
+library(stringr)
+
+```
+
+```{r}
+setwd("D:/HS/DS/BEGGEL-DS-WS19-T1-GIT/")
+```
+
+# Load Data
+```{r}
+db_urls = read.csv('../data/database_list.csv', header=TRUE, encoding = "UTF-8", na.strings = "null")
+db_infos = read.csv('../DBEngines/DBRanking.csv', header=TRUE, encoding = "UTF-8", na.strings = "null") 
+
+```
+
+# Create Base-Dataframe
+```{r}
+# get the names of the preselected DBs
+names = as.vector(db_urls$URLName)  
+
+# select preselected entries 
+selected_rows = db_infos[tolower(db_infos$URLName) %in% tolower(names), ]
+
+# remove "Rank"-column
+tmp_df = db_urls[,!(names(db_urls) %in% c("Rank"))]
+
+# create a dataframe with information about the preselected DBs
+base_df =  right_join(selected_rows, tmp_df, by = "URLName")
+
+```
+
+# Examine Dataframe
+```{r}
+# head(base_df)
+
+```
+
+
+```{r}
+# str(base_df)
+
+```
+
+
+```{r}
+# summary(base_df)
+
+```
+
+# Cleaning and Prepping Data
+```{r}
+# Remove unneccesary columns
+drop_list = c("Name", "Ausschließlich.ein.Cloud.Service", "DBaaS.Angebote", "Anmerkung")
+result_df = base_df[ , !(names(base_df) %in% drop_list)]
+```
+
+```{r}
+# str(result_df)
+
+```
+
+
+```{r}
+# check the values class
+# lapply(result_df$Rang, class)
+
+# The following variables were imported as factors, but they should be numerical 
+columns_to_numeric = c("Punkte", "Rang", "Suchmaschinen","Erscheinungsjahr", 
+                       "Graph.DBMS", "Document.Stores", "Key.Value.Stores", "Relational.DBMS",
+                       "Time.Series.DBMS", "Multivalue.DBMS", "Object.oriented.DBMS", "RDF.Stores", 
+                       "Wide.Column.Stores", "Navigational.DBMS", "Event.Stores", "Native.XML.DBMS",
+                       "Content.Stores")
+result_df[columns_to_numeric] = lapply(result_df[columns_to_numeric], as.numeric)
+
+# The following variables were imported as factors, but they should be characters
+columons_to_chr = c("Kurzbeschreibung", "Website", "Technische.Dokumentation", "Entwickler",
+                    "Aktuelle.Version", "Server.Betriebssysteme", "Git_URL")
+result_df[columons_to_chr] = lapply(result_df[columons_to_chr], as.character)
+
+
+#str(result_df)
+
+```
+
+
+```{r}
+plot(result_df$Rang, result_df$Punkte)
+
+```
+
