@@ -108,3 +108,9 @@ result_df[columons_to_chr] = lapply(result_df[columons_to_chr], as.character)
 
 ```
 
+
+```{r}
+plot(result_df$Rang, result_df$Punkte)
+
+```
+
