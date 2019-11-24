@@ -190,7 +190,7 @@ public class App {
 						columnName.add(split[0]);
 					}
 						
-					tableRow[columnName.indexOf(split[0])] = split[1].replaceAll("#", "");
+					tableRow[columnName.indexOf(split[0])] = ("" + split[1].replaceAll("#", "")).replace(",", ".");
 				} else if (text.startsWith("#")) {
 					
 //					String secRank = "Sekundärer Rang";
