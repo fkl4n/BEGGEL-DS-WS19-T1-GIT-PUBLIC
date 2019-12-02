@@ -21,10 +21,12 @@ The preview shows you a rendered HTML copy of the contents of the editor. Conseq
 ```{r,  warning=FALSE,include= TRUE,echo=TRUE,results='hide', message=FALSE}
 #install.packages("dplyr")
 #install.packages("stringr")
+install.packages(graphics)
 
 # load installed libraries 
 library(dplyr)
 library(stringr)
+library(graphics)
 
 ```
 
@@ -108,9 +110,39 @@ result_df[columons_to_chr] = lapply(result_df[columons_to_chr], as.character)
 
 ```
 
-
 ```{r}
-plot(result_df$Rang, result_df$Punkte)
+plot(result_df$Punkte~result_df$Rang, type = "p", pch =19, main = "Points in dependence of the Rank", xlab="Rank", ylab="Points")
 
 ```
 
+```{r}
+cor(result_df[ , c( "Punkte", "Rang")], use="complete")
+```
+
+```{r}
+db_df = data.frame(
+  names1 = c("MySql","PostgreSQL", "MongoDB", "ElasticSearch", "Redis"),
+  ranking = c(2, 4, 5, 7, 8),
+  commits = c(152906, 48124, 49221, 49375, 8631),
+  contributers= c(72, 33, 393, 1310, 319)
+)
+
+cor(db_df[ , c("ranking", "commits", "contributers")], use="complete")
+
+```
+
+```{r}
+# the negative correlation of ranking-commits is justified by the inversely proportional value of the rank to the rank itself
+# the lesser the rank, the higher it's value
+
+```
+
+
+```{r}
+color = c("red", "blue", "green", "orange", "black")
+
+plot(db_df$ranking~db_df$commits, type = "p", pch =19, main = "Ranking in dependence of Commits", col= color, ylim = rev(range(db_df$ranking)), xlab="Commits", ylab="Rank")
+
+legend("bottomright", legend = db_df$names1, col = color, lty=1, cex=0.8)
+
+```
