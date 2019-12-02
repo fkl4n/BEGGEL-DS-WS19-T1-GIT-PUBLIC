@@ -40,6 +40,9 @@ setwd("D:/HS/DS/BEGGEL-DS-WS19-T1-GIT/")
 db_urls = read.csv('../data/database_list.csv', header=TRUE, encoding = "UTF-8", na.strings = "null")
 db_infos = read.csv('../DBEngines/DBRanking.csv', header=TRUE, encoding = "UTF-8", na.strings = "null") 
 
+# Git-History for DBs (default-branch)
+db_git_history = read.csv('../Workspace/PostgreSQL.csv', header=TRUE, encoding = "UTF-8", na.strings = "null", sep = ";")
+
 ```
 
 # Create Base-Dataframe
@@ -80,18 +83,10 @@ base_df =  right_join(selected_rows, tmp_df, by = "URLName")
 ```{r}
 # Remove unneccesary columns
 drop_list = c("Name", "Ausschließlich.ein.Cloud.Service", "DBaaS.Angebote", "Anmerkung")
-result_df = base_df[ , !(names(base_df) %in% drop_list)]
-```
+result_meta_df = base_df[ , !(names(base_df) %in% drop_list)]
 
-```{r}
-# str(result_df)
-
-```
-
-
-```{r}
 # check the values class
-# lapply(result_df$Rang, class)
+# lapply(result_meta_df$Rang, class)
 
 # The following variables were imported as factors, but they should be numerical 
 columns_to_numeric = c("Punkte", "Rang", "Suchmaschinen","Erscheinungsjahr", 
@@ -99,17 +94,44 @@ columns_to_numeric = c("Punkte", "Rang", "Suchmaschinen","Erscheinungsjahr",
                        "Time.Series.DBMS", "Multivalue.DBMS", "Object.oriented.DBMS", "RDF.Stores", 
                        "Wide.Column.Stores", "Navigational.DBMS", "Event.Stores", "Native.XML.DBMS",
                        "Content.Stores")
-result_df[columns_to_numeric] = lapply(result_df[columns_to_numeric], as.numeric)
+result_meta_df[columns_to_numeric] = lapply(result_meta_df[columns_to_numeric], as.numeric)
 
 # The following variables were imported as factors, but they should be characters
 columons_to_chr = c("Kurzbeschreibung", "Website", "Technische.Dokumentation", "Entwickler",
                     "Aktuelle.Version", "Server.Betriebssysteme", "Git_URL")
-result_df[columons_to_chr] = lapply(result_df[columons_to_chr], as.character)
-
-#str(result_df)
+result_meta_df[columons_to_chr] = lapply(result_meta_df[columons_to_chr], as.character)
 
 ```
 
+```{r}
+# Convert timestamp from feactor to POSIXct format
+db_git_history["timestamp"] = lapply(db_git_history["timestamp"], function(x) as.POSIXct(x, format='%Y-%m-%dT%H:%M:%S'))
+
+
+# Define Function in order to extract the FileEnding
+extractFileExtension = function(x){
+  lapply(str_split(x, "[.]"), tail, 1)
+}
+
+
+# Add new column for the FileExtenstion to the data frame
+db_git_history["fileExtension"] = lapply(db_git_history["file"], function(x) extractFileExtension(x))
+
+# Convert all indistinguishable value to "unknown"
+db_git_history["fileExtension"] = lapply(db_git_history["fileExtension"], function(x) ifelse(grepl("[/]", x), "unknown", x))
+
+# Flatten the resulting List to a vector
+db_git_history["fileExtension"] = unlist(db_git_history$fileExtension, use.names=FALSE)
+
+# Convert the FileExtensions to factors
+db_git_history$fileExtension = as.factor(db_git_history$fileExtension)
+
+# provisionally renamed: "result" marks the data frames to plot with
+result_git_df = db_git_history
+                                         
+```
+
+# Plots
 ```{r}
 plot(result_df$Punkte~result_df$Rang, type = "p", pch =19, main = "Points in dependence of the Rank", xlab="Rank", ylab="Points")
 
@@ -159,19 +181,6 @@ legend("topright", legend = db_df$names1, col = color, pch=19, cex=0.8)
 plot(db_df$ranking~db_df$contributers, type = "p", pch =19, main = "Ranking in dependence of Contributers", col= color, ylim = rev(range(db_df$ranking)), xlab="Contributers", ylab="Rank")
 
 legend("topright", legend = db_df$names1, col = color, pch=19, cex=0.8)
-
-```
-
-# Import Git-History for DBs
-# (default-branch)
-```{r}
-db_git_history = read.csv('../Workspace/PostgreSQL.csv', header=TRUE, encoding = "UTF-8", na.strings = "null", sep = ";")
-
-```
-
-# Cleaning and Prepping Data
-```{r}
-db_git_history["timestamp"] = lapply(db_git_history["timestamp"], function(x) as.POSIXct(x, format='%Y-%m-%dT%H:%M:%S'))
 
 ```
 
