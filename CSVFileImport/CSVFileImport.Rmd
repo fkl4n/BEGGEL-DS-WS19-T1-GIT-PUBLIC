@@ -8,7 +8,7 @@ This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute
 Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
 
 ```{r}
-?plot(cars)
+# plot(cars)
 ```
 
 Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
@@ -21,12 +21,13 @@ The preview shows you a rendered HTML copy of the contents of the editor. Conseq
 ```{r,  warning=FALSE,include= TRUE,echo=TRUE,results='hide', message=FALSE}
 #install.packages("dplyr")
 #install.packages("stringr")
-install.packages(graphics)
+#install.packages(graphics)
 
 # load installed libraries 
 library(dplyr)
 library(stringr)
 library(graphics)
+library(ggplot2)
 
 ```
 
@@ -105,7 +106,6 @@ columons_to_chr = c("Kurzbeschreibung", "Website", "Technische.Dokumentation", "
                     "Aktuelle.Version", "Server.Betriebssysteme", "Git_URL")
 result_df[columons_to_chr] = lapply(result_df[columons_to_chr], as.character)
 
-
 #str(result_df)
 
 ```
@@ -113,6 +113,8 @@ result_df[columons_to_chr] = lapply(result_df[columons_to_chr], as.character)
 ```{r}
 plot(result_df$Punkte~result_df$Rang, type = "p", pch =19, main = "Points in dependence of the Rank", xlab="Rank", ylab="Points")
 
+
+# log(R)
 ```
 
 ```{r}
@@ -133,16 +135,46 @@ cor(db_df[ , c("ranking", "commits", "contributers")], use="complete")
 
 ```{r}
 # the negative correlation of ranking-commits is justified by the inversely proportional value of the rank to the rank itself
-# the lesser the rank, the higher it's value
+# the lesser the rank, the higher it's value 
 
 ```
-
 
 ```{r}
 color = c("red", "blue", "green", "orange", "black")
 
 plot(db_df$ranking~db_df$commits, type = "p", pch =19, main = "Ranking in dependence of Commits", col= color, ylim = rev(range(db_df$ranking)), xlab="Commits", ylab="Rank")
 
-legend("bottomright", legend = db_df$names1, col = color, lty=1, cex=0.8)
+legend("bottomright", legend = db_df$names1, col = color, pch=19, cex=0.8)
 
 ```
+
+```{r}
+plot(db_df$commits~db_df$contributers, type = "p", pch =19, main = "Commits in dependence of Contributers", col= color, xlab="Contributers", ylab="Commits")
+
+legend("topright", legend = db_df$names1, col = color, pch=19, cex=0.8)
+
+```
+
+```{r}
+plot(db_df$ranking~db_df$contributers, type = "p", pch =19, main = "Ranking in dependence of Contributers", col= color, ylim = rev(range(db_df$ranking)), xlab="Contributers", ylab="Rank")
+
+legend("topright", legend = db_df$names1, col = color, pch=19, cex=0.8)
+
+```
+
+# Import Git-History for DBs
+# (default-branch)
+```{r}
+db_git_history = read.csv('../Workspace/PostgreSQL.csv', header=TRUE, encoding = "UTF-8", na.strings = "null", sep = ";")
+
+```
+
+# Cleaning and Prepping Data
+```{r}
+db_git_history["timestamp"] = lapply(db_git_history["timestamp"], function(x) as.POSIXct(x, format='%Y-%m-%dT%H:%M:%S'))
+
+```
+
+
+
+
