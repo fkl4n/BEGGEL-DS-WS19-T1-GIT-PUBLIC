@@ -22,6 +22,7 @@ The preview shows you a rendered HTML copy of the contents of the editor. Conseq
 #install.packages("dplyr")
 #install.packages("stringr")
 #install.packages(graphics)
+#install.packages("ggplot2")
 
 # load installed libraries 
 library(dplyr)
@@ -133,14 +134,19 @@ result_git_df = db_git_history
 
 # Plots
 ```{r}
-plot(result_df$Punkte~result_df$Rang, type = "p", pch =19, main = "Points in dependence of the Rank", xlab="Rank", ylab="Points")
-
-
 # log(R)
+
+
+ggplot(data = result_meta_df, aes(x = Rang, y = Punkte)) +
+  geom_point() +
+  xlab('Rank') +
+  ylab('Points') +
+  ggtitle('Points in dependence of the Rank')
+
 ```
 
 ```{r}
-cor(result_df[ , c( "Punkte", "Rang")], use="complete")
+cor(result_meta_df[ , c( "Punkte", "Rang")], use="complete")
 ```
 
 ```{r}
@@ -183,7 +189,4 @@ plot(db_df$ranking~db_df$contributers, type = "p", pch =19, main = "Ranking in d
 legend("topright", legend = db_df$names1, col = color, pch=19, cex=0.8)
 
 ```
-
-
-
 
