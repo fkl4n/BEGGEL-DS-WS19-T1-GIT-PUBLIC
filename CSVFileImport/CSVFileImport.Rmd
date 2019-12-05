@@ -163,7 +163,7 @@ for(name in tmp_names){
     i = i + 1
   }
 }
-rm(tmp_list, extension, i, name)
+rm(tmp_list, tmp_names, extension, i, name)
 rm(file_extensions)
 
 ext_map = data.frame(extension = unlist(ext_key, use.names=FALSE), programmingLanguage = unlist(ext_value, use.names = FALSE))
@@ -205,7 +205,7 @@ result_git_df = db_git_history
 
 ## pie chart programmiersprachen in projekt
 ```{r}
-plot_pie_chart = function(threshold, db_git_history){
+plot_pie_chart = function(db_git_history, threshold, title){
 
   tmp = aggregate(db_git_history$change, by = list(programmingLanguage = db_git_history$programmingLanguage), FUN = sum)
   tmp = tmp[!(tmp$programmingLanguage == "unknown"),]
@@ -226,10 +226,10 @@ plot_pie_chart = function(threshold, db_git_history){
 
   pie <- bp + coord_polar("y", start=0)
   
-  return(pie + scale_fill_brewer(palette="Dark2"))
+  return(pie + scale_fill_brewer(palette="Dark2") + ggtitle(title))
 }
 
-plot_pie_chart(1, db_git_history)
+plot_pie_chart(db_git_history, 1, "Programming Languages per Title")
 
 
 ```
@@ -237,6 +237,18 @@ plot_pie_chart(1, db_git_history)
 ## top 5-10 pro entwickler anteil sprachen
 
 ```{r}
+# ATTENTION: it's hacky !!!
+
+languages_author = function(x){
+  df = db_git_history[db_git_history$authorName == x,]
+  df1 = aggregate(df[, c("change"), drop=FALSE], by = list(programmingLanguage = df$programmingLanguage), FUN = sum)
+}
+
+a = aggregate(db_git_history[, c("change"), drop=FALSE], by = list(author = db_git_history$authorName), FUN = sum)
+a = a[order(-a$change),]
+a = head(a, 5)
+
+lapply(a$author, function(x) plot_pie_chart(languages_author(x), 1, paste(x, ": Proportion of Programming Languages" ,sep = "")))
 
 
 
