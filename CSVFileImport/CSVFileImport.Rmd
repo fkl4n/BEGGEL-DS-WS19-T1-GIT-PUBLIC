@@ -3,20 +3,6 @@ title: "CSVFileImport"
 output: html_notebook
 ---
 
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
-
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
-
-```{r}
-# plot(cars)
-```
-
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
-
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
-
-The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
-
 # Load Libraries
 ```{r,  warning=FALSE,include= TRUE,echo=TRUE,results='hide', message=FALSE}
 #install.packages("dplyr")
@@ -25,24 +11,19 @@ The preview shows you a rendered HTML copy of the contents of the editor. Conseq
 #install.packages("ggplot2")
 
 # load installed libraries 
+library(tools)
+library(plyr)
 library(dplyr)
 library(stringr)
 library(graphics)
 library(ggplot2)
-
+library(yaml)
 ```
 
-```{r}
-setwd("D:/HS/DS/BEGGEL-DS-WS19-T1-GIT/")
-```
-
-# Load Data
+# Load DB Meta Data 
 ```{r}
 db_urls = read.csv('../data/database_list.csv', header=TRUE, encoding = "UTF-8", na.strings = "null")
 db_infos = read.csv('../DBEngines/DBRanking.csv', header=TRUE, encoding = "UTF-8", na.strings = "null") 
-
-# Git-History for DBs (default-branch)
-db_git_history = read.csv('../Workspace/PostgreSQL.csv', header=TRUE, encoding = "UTF-8", na.strings = "null", sep = ";")
 
 ```
 
@@ -60,23 +41,8 @@ tmp_df = db_urls[,!(names(db_urls) %in% c("Rank"))]
 # create a dataframe with information about the preselected DBs
 base_df =  right_join(selected_rows, tmp_df, by = "URLName")
 
-```
-
-# Examine Dataframe
-```{r}
-# head(base_df)
-
-```
-
-
-```{r}
-# str(base_df)
-
-```
-
-
-```{r}
-# summary(base_df)
+# remove following unused data
+rm(names, selected_rows, tmp_df, db_urls, db_infos)
 
 ```
 
@@ -85,6 +51,9 @@ base_df =  right_join(selected_rows, tmp_df, by = "URLName")
 # Remove unneccesary columns
 drop_list = c("Name", "Ausschließlich.ein.Cloud.Service", "DBaaS.Angebote", "Anmerkung")
 result_meta_df = base_df[ , !(names(base_df) %in% drop_list)]
+
+# remove following unused data
+rm(base_df)
 
 # check the values class
 # lapply(result_meta_df$Rang, class)
@@ -98,50 +67,12 @@ columns_to_numeric = c("Punkte", "Rang", "Suchmaschinen","Erscheinungsjahr",
 result_meta_df[columns_to_numeric] = lapply(result_meta_df[columns_to_numeric], as.numeric)
 
 # The following variables were imported as factors, but they should be characters
-columons_to_chr = c("Kurzbeschreibung", "Website", "Technische.Dokumentation", "Entwickler",
+columns_to_chr = c("Kurzbeschreibung", "Website", "Technische.Dokumentation", "Entwickler",
                     "Aktuelle.Version", "Server.Betriebssysteme", "Git_URL")
-result_meta_df[columons_to_chr] = lapply(result_meta_df[columons_to_chr], as.character)
+result_meta_df[columns_to_chr] = lapply(result_meta_df[columns_to_chr], as.character)
 
-```
-
-```{r}
-# Convert timestamp from feactor to POSIXct format
-db_git_history["timestamp"] = lapply(db_git_history["timestamp"], function(x) as.POSIXct(x, format='%Y-%m-%dT%H:%M:%S'))
-
-
-# Define Function in order to extract the FileEnding
-extractFileExtension = function(x){
-  lapply(str_split(x, "[.]"), tail, 1)
-}
-
-
-# Add new column for the FileExtenstion to the data frame
-db_git_history["fileExtension"] = lapply(db_git_history["file"], function(x) extractFileExtension(x))
-
-# Convert all indistinguishable value to "unknown"
-db_git_history["fileExtension"] = lapply(db_git_history["fileExtension"], function(x) ifelse(grepl("[/]", x), "unknown", x))
-
-# Flatten the resulting List to a vector
-db_git_history["fileExtension"] = unlist(db_git_history$fileExtension, use.names=FALSE)
-
-# Convert the FileExtensions to factors
-db_git_history$fileExtension = as.factor(db_git_history$fileExtension)
-
-# provisionally renamed: "result" marks the data frames to plot with
-result_git_df = db_git_history
-                                         
-```
-
-# Plots
-```{r}
-# log(R)
-
-
-ggplot(data = result_meta_df, aes(x = Rang, y = Punkte)) +
-  geom_point() +
-  xlab('Rank') +
-  ylab('Points') +
-  ggtitle('Points in dependence of the Rank')
+# remove following unused data
+rm(drop_list, columns_to_numeric, columns_to_chr)
 
 ```
 
@@ -158,12 +89,10 @@ db_df = data.frame(
 )
 
 cor(db_df[ , c("ranking", "commits", "contributers")], use="complete")
-
-```
-
-```{r}
 # the negative correlation of ranking-commits is justified by the inversely proportional value of the rank to the rank itself
 # the lesser the rank, the higher it's value 
+
+# log(R)
 
 ```
 
@@ -189,4 +118,132 @@ plot(db_df$ranking~db_df$contributers, type = "p", pch =19, main = "Ranking in d
 legend("topright", legend = db_df$names1, col = color, pch=19, cex=0.8)
 
 ```
+
+
+
+
+
+
+
+
+
+# Load Git-History for DB
+# (default-branch)
+```{r}
+
+# Git-History for DBs (default-branch)
+db_git_history = read.csv('../Workspace/PostgreSQL.csv', header=TRUE, encoding = "UTF-8", na.strings = "null", sep = ";")
+
+file_extensions = yaml.load_file('../data/file_extension/languages.yml')
+
+```
+
+```{r}
+# Convert timestamp from factor to POSIXct format
+db_git_history["timestamp"] = lapply(db_git_history["timestamp"], function(x) as.POSIXct(x, format='%Y-%m-%dT%H:%M:%S'))
+
+ext_key = list()
+ext_value = list()
+
+tmp_names = names(file_extensions)
+
+i=1
+
+for(name in tmp_names){
+  tmp_list = file_extensions[name]
+
+  # removes all File Extensions but Programming Languages
+  if(tmp_list[[name]]$type != "programming"){
+    next;
+  }
+  
+  for(extension in tmp_list[[name]]$extensions){
+    ext_key[i] = extension
+    ext_value[i] = name
+    i = i + 1
+  }
+}
+rm(tmp_list, extension, i, name)
+rm(file_extensions)
+
+ext_map = data.frame(extension = unlist(ext_key, use.names=FALSE), programmingLanguage = unlist(ext_value, use.names = FALSE))
+rm(ext_key, ext_value)
+
+
+test = function(x){
+  ext = paste(".", as.character(tail(unlist(str_split(x, "[.]")), 1)), sep="")
+
+  ifelse(ext %in% ext_map$extension,
+          as.character(ext_map$programmingLanguage[match(ext, ext_map$extension)]),
+         "unknown")
+}
+
+test2 = function(x){
+  lapply(x, test)
+}
+
+db_git_history["programmingLanguage"] = lapply(db_git_history["file"], function(x) test2(x))
+
+
+
+# Flatten the resulting List to a vector
+db_git_history["programmingLanguage"] = unlist(db_git_history$programmingLanguage, use.names=FALSE)
+
+# Convert the FileExtensions to factors
+db_git_history$programmingLanguage = as.factor(db_git_history$programmingLanguage)
+
+# provisionally renamed: "result" marks the data frames to plot with
+result_git_df = db_git_history
+
+```
+
+# Plots
+
+
+# Fragenstellung:
+# Wie Teilen Sich die Entwickler den Code auf? Hat jeder seinen Bereich? Wieviel Overlap ist vorhanden?
+
+## pie chart programmiersprachen in projekt
+```{r}
+plot_pie_chart = function(threshold, db_git_history){
+
+  tmp = aggregate(db_git_history$change, by = list(programmingLanguage = db_git_history$programmingLanguage), FUN = sum)
+  tmp = tmp[!(tmp$programmingLanguage == "unknown"),]
+  tmp_sum = sum(tmp$x)
+
+  tmp = mutate(tmp, x = x / tmp_sum * 100)
+
+  add_df = data.frame("others" , sum(tmp[tmp$x <= threshold,]$x))
+  names(add_df) = c("programmingLanguage", "x")
+
+  tmp = tmp[tmp$x > threshold,]
+
+  tmp = rbind(tmp, add_df)
+
+
+  bp<- ggplot(tmp, aes(x="", y=x, fill=programmingLanguage))+
+  geom_bar(width = 1, stat = "identity")
+
+  pie <- bp + coord_polar("y", start=0)
+  
+  return(pie + scale_fill_brewer(palette="Dark2"))
+}
+
+plot_pie_chart(1, db_git_history)
+
+
+```
+
+## top 5-10 pro entwickler anteil sprachen
+
+```{r}
+
+
+
+```
+
+
+## top 5-10 pro programmiersprache anteil entwickler
+## histogramm, xachse= programmiersprache, yachse=anzahl(Verwendung, commit)
+## histogram anteil programmiersprache pro commit
 
