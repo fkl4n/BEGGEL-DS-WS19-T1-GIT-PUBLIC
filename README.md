@@ -1,3 +1,7 @@
-# BEGGEL-DS-WS19-T1-GIT
+# Study of different aspects of Git repositories
 
-Parser for DBEngines [Link](./DBEngines/)
+## Content:
+
+Main page  
+|--[Parser for DBEngines](./dbec/)  
+'--[Notebooks](./notebooks/)  

@@ -1,0 +1,93 @@
+---
+title: "CSVFileImport"
+output: html_notebook
+---
+
+# Load Libraries
+```{r,  warning=FALSE,include= TRUE,echo=TRUE,results='hide', message=FALSE}
+#install.packages("tools")
+#install.packages("plyr")
+#install.packages("dplyr")
+#install.packages("ggplot2")
+
+# load installed libraries 
+library(tools)
+library(plyr)
+library(dplyr)
+library(ggplot2)
+```
+
+# Load required .csv files
+```{r}
+#Load db_info .csv file
+source("../csv_file_import/load_db_info.R")
+db_infos = load_db_infos()
+
+#Load function to import db_history .csv file
+#usage: load_db_history("path")
+source("../csv_file_import/load_db_history.R")
+db_git_history = load_db_history(input_path = "../../Workspace/PostgreSQL.csv")
+```
+
+# Plots
+
+
+# Fragenstellung:
+# Wie Teilen Sich die Entwickler den Code auf? Hat jeder seinen Bereich? Wieviel Overlap ist vorhanden?
+
+## pie chart programmiersprachen in projekt
+```{r}
+plot_pie_chart = function(db_git_history, threshold, title){
+
+  tmp = aggregate(db_git_history$change, by = list(programmingLanguage = db_git_history$programmingLanguage), FUN = sum)
+  tmp = tmp[!(tmp$programmingLanguage == "unknown"),]
+  tmp_sum = sum(tmp$x)
+
+  tmp = mutate(tmp, x = x / tmp_sum * 100)
+
+  add_df = data.frame("others" , sum(tmp[tmp$x <= threshold,]$x))
+  names(add_df) = c("programmingLanguage", "x")
+
+  tmp = tmp[tmp$x > threshold,]
+
+  tmp = rbind(tmp, add_df)
+
+
+  bp<- ggplot(tmp, aes(x="", y=x, fill=programmingLanguage))+
+  geom_bar(width = 1, stat = "identity")
+
+  pie <- bp + coord_polar("y", start=0)
+  
+  return(pie + scale_fill_brewer(palette="Dark2") + ggtitle(title))
+}
+
+plot_pie_chart(db_git_history, 1, "Programming Languages per Title")
+
+
+```
+
+## top 5-10 pro entwickler anteil sprachen
+
+```{r}
+# ATTENTION: it's hacky !!!
+
+languages_author = function(x){
+  df = db_git_history[db_git_history$authorName == x,]
+  df1 = aggregate(df[, c("change"), drop=FALSE], by = list(programmingLanguage = df$programmingLanguage), FUN = sum)
+}
+
+a = aggregate(db_git_history[, c("change"), drop=FALSE], by = list(author = db_git_history$authorName), FUN = sum)
+a = a[order(-a$change),]
+a = head(a, 5)
+
+lapply(a$author, function(x) plot_pie_chart(languages_author(x), 1, paste(x, ": Proportion of Programming Languages" ,sep = "")))
+
+
+
+```
+
+
+## top 5-10 pro programmiersprache anteil entwickler
+## histogramm, xachse= programmiersprache, yachse=anzahl(Verwendung, commit)
+## histogram anteil programmiersprache pro commit
+
