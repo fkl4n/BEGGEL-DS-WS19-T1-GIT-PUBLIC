@@ -39,7 +39,7 @@ setwd("K:/Data Science/Projekt/BEGGEL-DS-WS19-T1-GIT/")
 ```{r}
 for (path in c("../Workspace/PostgreSQL.csv", "../Workspace/MySql.csv", "../Workspace/MongoDB.csv")){
 
-  print(val)
+  print(path)
   ### Load Data - Start ###
 
   db_urls = read.csv('../data/database_list.csv', header=TRUE, encoding = "UTF-8", na.strings = "null")
@@ -158,14 +158,16 @@ for (path in c("../Workspace/PostgreSQL.csv", "../Workspace/MySql.csv", "../Work
     arrange(file, timestamp) %>%
     mutate(fileSize = cumsum(change))
   
-  print(df)
+  #print(df)
   
   #Dataframe der die Korrelation zwischen Commitgröße und Filegröße enthält.
   correlation_per_file = df %>% 
     group_by(file) %>%
-    summarize(correlation=cor(change,fileSize))
+    summarize(correlation=cor(change,fileSize), changeCount = length(file)) %>%
+    arrange(desc(correlation))
+
   
-  print(correlation_per_file)
+  #print(correlation_per_file)
   
   #Plot Korrelation zwischen Commitgröße und Filegröße.
   print(ggplot(correlation_per_file, aes(x=file, y=correlation)) + geom_point())
@@ -179,10 +181,28 @@ for (path in c("../Workspace/PostgreSQL.csv", "../Workspace/MySql.csv", "../Work
   correlation_mean = mean(correlation_per_file$correlation, na.rm = TRUE)  
   print(correlation_mean)
     
-  ### Plots zur Lösung derAufgabe - Ende ###
+  
+  example_flies_with_the_biggest_correlation = correlation_per_file %>% 
+    filter(0.9 <= correlation) %>% 
+    arrange(changeCount)  %>%
+    top_n(10)
+  example_flies_with_the_biggest_correlation <- unlist(as.vector(example_flies_with_the_biggest_correlation['file']))
+  
+   extract_specific_data3 <- extract_specific_data2 %>% 
+    group_by(file) %>%
+    filter(file %in% example_flies_with_the_biggest_correlation) %>% 
+    mutate(fileSize = cumsum(change))  %>%
+    arrange(file, timestamp)
 
+  #extract_specific_data3
+   
+  #Plot für Files mit hoher Korrelations.
+  print(ggplot(data = extract_specific_data3) + geom_point(aes(x=fileSize, y=change, colour=file)))  
+
+  ### Plots zur Lösung derAufgabe - Ende ###
 
 }
 
 ```
+
 
