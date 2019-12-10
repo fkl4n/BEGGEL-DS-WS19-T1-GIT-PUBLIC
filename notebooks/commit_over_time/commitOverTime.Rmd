@@ -6,19 +6,6 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
-
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
-
-The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
-
 # Load Libraries
 ```{r,  warning=FALSE,include= TRUE,echo=TRUE,results='hide', message=FALSE}
 #install.packages("dplyr")
@@ -33,10 +20,9 @@ library(ggplot2)
 library(lubridate)
 
 ```
-Festlegen des Arbeitsverzeichnisses und der Zeitspanne
+Festlegen der Zeitspanne
 ```{r}
 
-setwd("/Users/mathiasfedder/git/BEGGEL-DS-WS19-T1-GIT/")
 timeframe <- c(as.Date("1997-01-01"),as.Date("2019-12-31"))
 
 ```
@@ -52,6 +38,42 @@ db_git_history_Postgre["timestamp"] = lapply(db_git_history_Postgre["timestamp"]
 
 ```
 
+Anziegen der Files mit den meisten Commits
+```{r}
+extractedTable_Postgre_CommitCountByFile <- db_git_history_Postgre %>%
+  group_by(file) %>%
+	summarise(commitCount = n_distinct(commit)) %>%
+  filter(.,commitCount>400)
+
+
+ggplot(extractedTable_Postgre_CommitCountByFile, aes(x=reorder(file,-commitCount),y =commitCount)) + geom_col()+theme(axis.text.x = element_text(angle = 90)) +ggtitle("CommitCount by File") +
+            xlab("File") + ylab("CommitCount")
+```
+#HotSpot auswertung 
+
+```{r}
+db_git_history_Postgre %>%
+  group_by(programmingLanguage)%>%
+  summarise(n = n())%>%
+  arrange(desc(n))
+```
+Wie Hoch ist der Anteil einer Programmiersprache in einem Repository
+
+```{r}
+extractedTable_Postgre_SumOfChangeByFile <- db_git_history_Postgre %>%
+  group_by(file,programmingLanguage) %>%
+	summarise(sumOfChange = sum(change)) %>%
+  filter(str_detect(programmingLanguage, "C")) %>%
+  arrange(desc(sumOfChange)) %>%
+  head(25)
+
+hotspot_postgre <-extractedTable_Postgre_CommitCountByFile %>% 
+  inner_join(extractedTable_Postgre_SumOfChangeByFile,by="file")
+
+ggplot(hotspot_postgre, aes(x=commitCount,y =sumOfChange,colour = factor(file))) + geom_col()+theme(axis.text.x = element_text(angle = 90))+ggtitle("Hotspotauswertung") +
+            xlab("Count of Commits") + ylab("Sum of Change")
+```
+
 Gruppiert nach Datum werden die eindeutigen CommitIds für diesen Tag aufsummiert
 ```{r}
 
@@ -61,7 +83,7 @@ extractedTable_Postgre <- db_git_history_Postgre %>%
 
 ```
 
-Erster Plot zum Überblick
+Plot zum Überblick
 ```{r}
 
 PostgrePlot <-ggplot(extractedTable_Postgre, aes(y=commitCount,x=timestamp)) + geom_line(color = "green") +stat_smooth(
@@ -101,7 +123,8 @@ Weiterer Plot als Monatsübersicht.
 ```{r}
 
 PostgrePlotMonthly <-ggplot(extractedTableMonth_Postgre, aes(y=commits,x=year,month)) +
-  geom_smooth()
+  geom_smooth() +ggtitle("Commits over Time Postgre") +
+            xlab("Time") + ylab("Commits")
 
 ```
 Hier kann man das Abfallen der Commitanzahl bereits besser erkennen
@@ -115,7 +138,8 @@ Zum Abschluss noch eine Einzelauflistung der jeweiligen Jahre
 
 PostgrePlotMonthlyFacet <- ggplot(extractedTableMonth_Postgre, aes(y=commits,x=month)) +
       geom_bar(stat = "identity", fill = "darkorchid4") +
-  facet_wrap(~ year, ncol = 5)
+  facet_wrap(~ year, ncol = 5) +ggtitle("Commit over Time") +
+            xlab("Time") + ylab("Commits")
 
 ```
 Auch hier mit der selben Erkenntnis
@@ -130,8 +154,43 @@ Die Einlese- und Bearbeitungsmethoden sind gleich
 
 db_git_history_MySQL = load_db_history(input_path = "../../Workspace/MySQL.csv")
 db_git_history_MySQL["timestamp"] = lapply(db_git_history_MySQL["timestamp"], function(x) as.Date(x, format='%Y-%m-%d'))
+```
 
 
+```{r}
+extractedTable_MySQL_CommitCountByFile <- db_git_history_MySQL %>%
+  group_by(file) %>%
+	summarise(commitCount = n_distinct(commit)) %>%
+  filter(.,commitCount>500)
+
+
+ggplot(extractedTable_MySQL_CommitCountByFile, aes(x=reorder(file,-commitCount),y =commitCount)) + geom_col()+theme(axis.text.x = element_text(angle = 90))+ggtitle("CommitCount by File") +
+            xlab("File") + ylab("CommitCount")
+```
+
+HotSpot auswertung
+
+```{r}
+db_git_history_MySQL %>%
+  group_by(programmingLanguage)%>%
+  summarise(n = n())%>%
+  arrange(desc(n))
+
+extractedTable_MySQL_SumOfChangeByFile <- db_git_history_MySQL %>%
+  group_by(file,programmingLanguage) %>%
+	summarise(sumOfChange = sum(change)) %>%
+  filter(str_detect(programmingLanguage, "C++")) %>%
+  arrange(desc(sumOfChange)) %>%
+  head(25)
+
+hotspot_MySQL <-extractedTable_MySQL_CommitCountByFile %>% 
+  inner_join(extractedTable_MySQL_SumOfChangeByFile,by="file")
+
+ggplot(hotspot_MySQL, aes(x=commitCount,y =sumOfChange,colour = factor(file))) + geom_col()+theme(axis.text.x = element_text(angle = 90))+ggtitle("Hotspotauswertung MySQL") +
+            xlab("Count of Commits") + ylab("Sum of Change")
+```
+
+```{r}
 extractedTable_MySQL <- db_git_history_MySQL %>%
   group_by(timestamp) %>%
 	summarise(commitCount = n_distinct(commit))
@@ -158,7 +217,8 @@ extractedTableMonth_MySQL <- extractedTable_MySQL %>%
 	summarise(commits = sum(commitCount))
 
 MySQLPlotMonthly <-ggplot(extractedTableMonth_MySQL, aes(y=commits,x=year,month)) +
-  geom_smooth()
+  geom_smooth() +ggtitle("Commit over Time") +
+            xlab("Time") + ylab("Commits")
 
 ```
 MySQL macht ca doppelt so viel Commits im Manat zur Spitzenzeit
@@ -169,7 +229,8 @@ MySQLPlotMonthly
 
 MySQLPlotMonthlyFacet <- ggplot(extractedTableMonth_MySQL, aes(y=commits,x=month)) +
       geom_bar(stat = "identity", fill = "darkorchid4") +
-  facet_wrap(~ year, ncol = 5)
+  facet_wrap(~ year, ncol = 5)+ggtitle("Commit over Time") +
+            xlab("Time") + ylab("Commits")
 
 ```
 Auch hier lässt sich das Abfallen der Commits beobachten
@@ -183,8 +244,44 @@ MySQLPlotMonthlyFacet
 ```{r}
 db_git_history_MongoDB = load_db_history(input_path = "../../Workspace/MongoDB.csv")
 db_git_history_MongoDB["timestamp"] = lapply(db_git_history_MongoDB["timestamp"], function(x) as.Date(x, format='%Y-%m-%d'))
+```
 
+```{r}
+extractedTable_MongoDB_CommitCountByFile <- db_git_history_MongoDB %>%
+  group_by(file,programmingLanguage) %>%
+	summarise(commitCount = n_distinct(commit)) %>%
+  filter(str_detect(programmingLanguage, "C++")) %>%
+  filter(.,commitCount>250)
+
+
+ggplot(extractedTable_MongoDB_CommitCountByFile, aes(x=reorder(file,-commitCount),y =commitCount)) + geom_col()+theme(axis.text.x = element_text( angle = 45))+ggtitle("CommitCount by File") +
+            xlab("File") + ylab("CommitCount")
+```
+
+HotSpot auswertung
+
+```{r}
+db_git_history_MongoDB %>%
+  group_by(programmingLanguage)%>%
+  summarise(n = n())%>%
+  arrange(desc(n))
+
+extractedTable_MongoDB_SumOfChangeByFile <- db_git_history_MongoDB %>%
+  group_by(file,programmingLanguage) %>%
+	summarise(sumOfChange = sum(change)) %>%
+  filter(str_detect(programmingLanguage, "C++")) %>%
+  arrange(desc(sumOfChange)) %>%
+  head(30)
+
+hotspot_MongoDB <-extractedTable_MongoDB_CommitCountByFile %>% 
+  inner_join(extractedTable_MongoDB_SumOfChangeByFile,by="file")
+hotspot_MongoDB
+ggplot(hotspot_MongoDB, aes(x=commitCount,y =sumOfChange,colour = factor(file))) + geom_col()+theme(axis.text.x = element_text(angle = 90))+ggtitle("Hotspotauswertung MongoDB") +
+            xlab("Count of Commits") + ylab("Sum of Change")
+```
  
+ 
+```{r}
 extractedTable_MongoDB <- db_git_history_MongoDB %>%
   group_by(timestamp) %>%
 	summarise(commitCount = n_distinct(commit))
@@ -233,4 +330,7 @@ Die Spitze lässt sich hier nur schwer erkennen
 MongoDBPlotMonthlyFacet
 
 ```
+
+
+
 
