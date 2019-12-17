@@ -6,7 +6,9 @@ Workspace/
 .Rapp.history
 
 # Session Data files
+env.RData
 .RData
+/*.RData
 
 # User-specific files
 .Ruserdata
