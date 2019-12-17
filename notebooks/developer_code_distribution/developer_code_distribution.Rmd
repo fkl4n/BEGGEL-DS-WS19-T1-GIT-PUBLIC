@@ -1,6 +1,8 @@
 ---
-title: "Notebook: Aufteilung von Code zwischen Entwicklern"
-output: html_notebook
+title: 'Notebook: Aufteilung von Code zwischen Entwicklern'
+output:
+  html_document:
+    df_print: paged
 ---
 
 ```{r,  warning=FALSE, include= FALSE, echo=TRUE, results='hide', message=FALSE}
@@ -173,6 +175,24 @@ lapply(rank_language$language, function(name) plot_pie_chart_language(name, db_g
 rm(rank_language)
 ```
 
-## histogram anteil programmiersprache pro commit
+## Anteil Programmiersprache pro Commit
+Im Folgenden ist ein Ausschnitt der Programmiersprachen-Verteilung über 30 Commits je Commit (unsortiert) dargestellt. Hierbei lässt sich die Anzahl der Änderungen in Lines of Code pro Commit mit zugehöriger Programmiersprache erkennen. 
+
+```{r echo = FALSE, results='hide', fig.keep='all'}
+tmp = aggregate(db_git_history[, c("change"), drop=FALSE], by = list(programmingLanguage = db_git_history$programmingLanguage, commit = db_git_history$commit), FUN = sum)
+
+tmp = tmp[!(tmp$programmingLanguage == "unknown"),]
+
+tmp$change = abs(tmp$change)
+
+
+ggplot(head(tmp, 30)) + geom_col(aes(x = commit, y = change, fill = programmingLanguage)) + theme(axis.text.x = element_text(angle = 90, hjust = 2)) +
+  theme(axis.text.x=element_blank()) + scale_fill_brewer(palette= theme)
+
+```
 
 ## mean value: developer worked on file per file
+
+## Density plot / komplexere plots
+
+## Über DB grenzen
