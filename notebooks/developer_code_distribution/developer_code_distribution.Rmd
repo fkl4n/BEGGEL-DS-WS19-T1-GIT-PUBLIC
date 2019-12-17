@@ -94,7 +94,7 @@ Im folgenden Diagramm werden die Anteile der eingesetzten Programmiersprachen pr
 ```{r echo = FALSE, results='hide', fig.keep='all', fig.align='center'}
 
 plot_pie_chart_developer = function(name, db_git_history, threshold, title){
-  tmp = aggregate(db_git_history$change, by = list(author = db_git_history$authorName, programmingLanguage = db_git_history$programmingLanguage), FUN = sum)
+  tmp = aggregate(db_git_history$change, by = list(author = db_git_history$author, programmingLanguage = db_git_history$programmingLanguage), FUN = sum)
 
   tmp = tmp[tmp$author == name,]
   tmp$author = NULL
@@ -119,7 +119,7 @@ plot_pie_chart_developer = function(name, db_git_history, threshold, title){
   return(pie + scale_fill_brewer(palette = theme) + ggtitle(title))
 }
 
- rank_developer = aggregate(db_git_history[, c("change"), drop=FALSE], by = list(author = db_git_history$authorName, commit = db_git_history$commit), FUN = sum)
+ rank_developer = aggregate(db_git_history[, c("change"), drop=FALSE], by = list(author = db_git_history$author, commit = db_git_history$commit), FUN = sum)
  
 rank_developer = rank_developer[!(rank_developer$author == "Nobody"),]
 
@@ -139,7 +139,7 @@ In den folgenden Diagrammen wird der umgekehrte Fall zu den vorherigen Bilder ge
 ```{r echo = FALSE, results='hide', fig.keep='all'}
 
 plot_pie_chart_language = function(name, db_git_history, threshold, title){
-  tmp = aggregate(db_git_history$change, by = list(author = db_git_history$authorName, programmingLanguage = db_git_history$programmingLanguage), FUN = sum)
+  tmp = aggregate(db_git_history$change, by = list(author = db_git_history$author, programmingLanguage = db_git_history$programmingLanguage), FUN = sum)
 
   tmp = tmp[tmp$programmingLanguage == name,]
   tmp$programmingLanguage = NULL
@@ -190,6 +190,8 @@ ggplot(head(tmp, 30)) + geom_col(aes(x = commit, y = change, fill = programmingL
   theme(axis.text.x=element_blank()) + scale_fill_brewer(palette= theme)
 
 ```
+
+## percentage changes per developer in whole project
 
 ## mean value: developer worked on file per file
 
