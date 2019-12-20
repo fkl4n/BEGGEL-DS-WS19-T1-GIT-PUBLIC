@@ -31,7 +31,7 @@ Im zweiten Abschnitt werden zusätzlich zur Programmiersprache auch die Dateien 
 
 ## Vorbereitung
 
-Zu Beginn betrachten wir das Farbschema für die nachfolgenden Diagramme. Das Schema ist einheitlich zur besseren Lesbarkeit:
+Zu Beginn betrachten wir das Farbschema für die nachfolgenden Diagramme. Das Schema ist einheitlich zur besseren Verständlichkeit der Diagramme:
 
 ```{r echo = FALSE, fig.width=5, fig.height=2}
 theme = "Set1"
@@ -40,16 +40,22 @@ display.brewer.pal(n = 9, name = theme)
 
 ### Laden der Daten
 
-Die Git-Historie liegt als .csv Datei vor. Diese wird mit den folgenden Befehlen geladen und anschließend automatisch zur weiteren Verarbeitung vorbereitet:
-```{r}
+Die Git-Historie liegt als .csv Datei vor. Diese wird mit den folgenden Befehlen geladen und anschließend automatisch zur weiteren Verarbeitung vorbereitet. Um einen kurzen Überblick zu verschaffen, wird ein kleiner Ausschnitt aus der importierten Datei gezeigt:
+```{r include=FALSE}
 #Load db_info .csv file
-source("../csv_file_import/load_db_info.R")
-db_infos = load_db_infos()
+# source("../csv_file_import/load_db_info.R")
+# db_infos = load_db_infos()
 
-#Load function to import db_history .csv file
-#usage: load_db_history("path")
-source("../csv_file_import/load_db_history.R")
-db_git_history = load_db_history(input_path = "../../Workspace/PostgreSQL.csv")
+# source("../csv_file_import/load_db_history2.R")
+# db_git_history = load_db_history2("../../Workspace/MongoDB.csv")
+
+#Loads all .csv git history files available in ./workspace/histories
+source("../csv_file_import/load_db_history_all.R")
+db_git_history = load_db_history_all()
+```
+
+```{r echo = FALSE}
+head(db_git_history, n = 10)
 ```
 
 ## 1. Verteilung Programmiersprachen
@@ -190,6 +196,12 @@ ggplot(head(tmp, 30)) + geom_col(aes(x = commit, y = change, fill = programmingL
   theme(axis.text.x=element_blank()) + scale_fill_brewer(palette= theme)
 
 ```
+
+## Stacked bar graph database language percentage over multiple languages
+
+## Histogram: changes in repo language distribution over time
+
+## Multiline Plot: development language over time 
 
 ## percentage changes per developer in whole project
 
