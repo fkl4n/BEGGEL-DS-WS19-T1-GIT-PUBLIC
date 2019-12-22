@@ -1,0 +1,212 @@
+---
+title: 'Notebook: Aufteilung von Code zwischen Entwicklern'
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r,  warning=FALSE, include= FALSE, echo=TRUE, results='hide', message=FALSE}
+#install.packages("tools")
+#install.packages("plyr")
+#install.packages("dplyr")
+#install.packages("ggplot2")
+
+# load installed libraries 
+library(tools)
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(RColorBrewer)
+library(rmarkdown)
+```
+
+Bei der Entwicklung von Softwareprojekten werden eine Vielzahl unterschiedlicher Techniken und Programmiersprachen eingesetzt, um geforderte bzw. gewünschte Funktionen zu realisieren. Verschiedene Faktoren, wie Größe, Budget usw. eines Softwareteams können zu einer unterschiedlichen Aufgabenverteilung innerhalb des Teams führen. 
+
+In diesem Notebook soll deshalb die Beziehung zwischen Entwicklern, Commits und Programmiersprachen anhand der Git-Historie von Softwareprojekten untersucht werden. Hierbei soll im ersten Abschnitt insbesondere die Frage beantwortet werden, ob Entwickler auf eine Programmiersprache spezialisiert sind, oder vielmehr Aufgaben nach Bedarf erfüllen.
+Im zweiten Abschnitt werden zusätzlich zur Programmiersprache auch die Dateien und die Projektstruktur einbezogen. Dabei sollen die folgenden Fragen beantwortet werden:
+
+* Wie teilen Entwickler den Code untereinander auf?
+* Existieren Teilbereiche, welche durch einen Entwickler bearbeitet werden?
+* Gibt es Teilbereiche die von mehreren Entwicklern gepflegt werden?
+
+## Vorbereitung
+
+Zu Beginn betrachten wir das Farbschema für die nachfolgenden Diagramme. Das Schema ist einheitlich zur besseren Verständlichkeit der Diagramme:
+
+```{r echo = FALSE, fig.width=5, fig.height=2}
+theme = "Set1"
+display.brewer.pal(n = 9, name = theme)
+```
+
+### Laden der Daten
+
+Die Git-Historie liegt als .csv Datei vor. Diese wird mit den folgenden Befehlen geladen und anschließend automatisch zur weiteren Verarbeitung vorbereitet. Um einen kurzen Überblick zu verschaffen, wird ein kleiner Ausschnitt aus der importierten Datei gezeigt:
+```{r include=FALSE}
+#Load db_info .csv file
+# source("../csv_file_import/load_db_info.R")
+# db_infos = load_db_infos()
+
+# source("../csv_file_import/load_db_history2.R")
+# db_git_history = load_db_history2("../../Workspace/MongoDB.csv")
+
+#Loads all .csv git history files available in ./workspace/histories
+source("../csv_file_import/load_db_history_all.R")
+db_git_history = load_db_history_all()
+```
+
+```{r echo = FALSE}
+head(db_git_history, n = 10)
+```
+
+## 1. Verteilung Programmiersprachen
+
+Um die Frage beantworten zu können, ob Entwickler auf eine Programmiersprache spezialisiert sind oder viele Sprachen einsetzen, muss zuerst ein Überblick über die im Projekt eingesetzten Programmiersprachen erstellt werden. Das folgende Diagram zeigt den Anteil der verschiedenen, eingesetzten Programmiersprachen im Projekt. Der Anteil wurde als Anteil der Lines of Code im Verhältnis zur Gesamtanzahl der LOC berechnet.  
+
+```{r echo = FALSE}
+plot_pie_chart = function(db_git_history, threshold, title){
+
+  tmp = aggregate(db_git_history$change, by = list(programmingLanguage = db_git_history$programmingLanguage), FUN = sum)
+  tmp = tmp[!(tmp$programmingLanguage == "unknown"),]
+  tmp$x = abs(tmp$x)
+  tmp_sum = sum(tmp$x)
+
+  tmp = mutate(tmp, x = x / tmp_sum * 100)
+
+  add_df = data.frame("others" , sum(tmp[tmp$x <= threshold,]$x))
+  names(add_df) = c("programmingLanguage", "x")
+
+  tmp = tmp[tmp$x > threshold,]
+
+  tmp = rbind(tmp, add_df)
+
+
+  bp<- ggplot(tmp, aes(x="", y=x, fill=programmingLanguage))+
+  geom_bar(width = 1, stat = "identity")
+
+  pie <- bp + coord_polar("y", start=0)
+  
+  return(pie + scale_fill_brewer(palette= theme) + ggtitle(title))
+}
+
+plot_pie_chart(db_git_history, 1, "Programming Languages per Title")
+
+```
+
+
+### Programmiersprachen pro Entwickler
+
+Im folgenden Diagramm werden die Anteile der eingesetzten Programmiersprachen pro Entwickler betrachtet. Dabei werden die zehn Entwickler mit den meisten Commits betrachtet.
+
+```{r echo = FALSE, results='hide', fig.keep='all', fig.align='center'}
+
+plot_pie_chart_developer = function(name, db_git_history, threshold, title){
+  tmp = aggregate(db_git_history$change, by = list(author = db_git_history$author, programmingLanguage = db_git_history$programmingLanguage), FUN = sum)
+
+  tmp = tmp[tmp$author == name,]
+  tmp$author = NULL
+  tmp = tmp[!(tmp$programmingLanguage == "unknown"),]
+  tmp$x = abs(tmp$x)
+  tmp_sum = sum(tmp$x)
+
+  tmp = mutate(tmp, x = x / tmp_sum * 100)
+
+  add_df = data.frame("others" , sum(tmp[tmp$x <= threshold,]$x))
+  names(add_df) = c("programmingLanguage", "x")
+
+  tmp = tmp[tmp$x > threshold,]
+  
+  tmp = rbind(tmp, add_df)
+
+  bp<- ggplot(tmp, aes(x="", y=x, fill=programmingLanguage))+
+  geom_bar(width = 1, stat = "identity")
+
+  pie <- bp + coord_polar("y", start=0)
+  
+  return(pie + scale_fill_brewer(palette = theme) + ggtitle(title))
+}
+
+ rank_developer = aggregate(db_git_history[, c("change"), drop=FALSE], by = list(author = db_git_history$author, commit = db_git_history$commit), FUN = sum)
+ 
+rank_developer = rank_developer[!(rank_developer$author == "Nobody"),]
+
+rank_developer = count(rank_developer, author)
+rank_developer = rank_developer[order(-rank_developer$n),]
+rank_developer = head(rank_developer, 10)
+
+lapply(rank_developer$author, function(name) plot_pie_chart_developer(name, db_git_history, 2, paste(name, ": Proportion of Programming Languages" ,sep = "")))
+
+rm(rank_developer)
+
+```
+### Entwickler pro Programmiersprachen
+
+In den folgenden Diagrammen wird der umgekehrte Fall zu den vorherigen Bilder gezeigt. Hier werden die Programmiersprachen und der Verteilung anteilig auf die einzelnen Entwickler betrachtet. Auch hier werden die zehn Programmiersprachen betrachtet, welche in den meisten Commits vorhanden sind.
+
+```{r echo = FALSE, results='hide', fig.keep='all'}
+
+plot_pie_chart_language = function(name, db_git_history, threshold, title){
+  tmp = aggregate(db_git_history$change, by = list(author = db_git_history$author, programmingLanguage = db_git_history$programmingLanguage), FUN = sum)
+
+  tmp = tmp[tmp$programmingLanguage == name,]
+  tmp$programmingLanguage = NULL
+  tmp = tmp[!(tmp$author == "Nobody"),]
+  tmp$x = abs(tmp$x)
+  tmp_sum = sum(tmp$x)
+  
+  tmp = mutate(tmp, x = x / tmp_sum * 100)
+
+  add_df = data.frame("others" , sum(tmp[tmp$x <= threshold,]$x))
+  names(add_df) = c("author", "x")
+  
+  tmp = tmp[tmp$x > threshold,]
+  tmp = rbind(tmp, add_df)
+  
+  bp<- ggplot(tmp, aes(x="", y=x, fill=author))+
+  geom_bar(width = 1, stat = "identity")
+  
+  pie <- bp + coord_polar("y", start=0)
+
+  return(pie + scale_fill_brewer(palette= theme) + ggtitle(title))
+}
+
+rank_language = aggregate(db_git_history$change, by = list(language = db_git_history$programmingLanguage, commit = db_git_history$commit), FUN = sum)
+rank_language = rank_language[!(rank_language$language == "unknown"),]
+                             
+rank_language = count(rank_language, language)
+rank_language = rank_language[order(-rank_language$n),]
+rank_language = head(rank_language, 10)
+
+lapply(rank_language$language, function(name) plot_pie_chart_language(name, db_git_history, 5, paste(name, ": Proportion of Developers using Language" ,sep = "")))
+
+rm(rank_language)
+```
+
+## Anteil Programmiersprache pro Commit
+Im Folgenden ist ein Ausschnitt der Programmiersprachen-Verteilung über 30 Commits je Commit (unsortiert) dargestellt. Hierbei lässt sich die Anzahl der Änderungen in Lines of Code pro Commit mit zugehöriger Programmiersprache erkennen. 
+
+```{r echo = FALSE, results='hide', fig.keep='all'}
+tmp = aggregate(db_git_history[, c("change"), drop=FALSE], by = list(programmingLanguage = db_git_history$programmingLanguage, commit = db_git_history$commit), FUN = sum)
+
+tmp = tmp[!(tmp$programmingLanguage == "unknown"),]
+
+tmp$change = abs(tmp$change)
+
+
+ggplot(head(tmp, 30)) + geom_col(aes(x = commit, y = change, fill = programmingLanguage)) + theme(axis.text.x = element_text(angle = 90, hjust = 2)) +
+  theme(axis.text.x=element_blank()) + scale_fill_brewer(palette= theme)
+
+```
+
+## Stacked bar graph database language percentage over multiple languages
+
+## Histogram: changes in repo language distribution over time
+
+## Multiline Plot: development language over time 
+
+## percentage changes per developer in whole project
+
+## mean value: developer worked on file per file
+
+## Density plot / komplexere plots
+
+## Über DB grenzen

@@ -1,0 +1,336 @@
+---
+title: "CommitOverTime"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Load Libraries
+```{r,  warning=FALSE,include= TRUE,echo=TRUE,results='hide', message=FALSE}
+#install.packages("dplyr")
+#install.packages("stringr")
+#nstall.packages(graphics)
+#install.packages("lubridate")
+# load installed libraries 
+library(dplyr)
+library(stringr)
+library(graphics)
+library(ggplot2)
+library(lubridate)
+
+```
+Festlegen der Zeitspanne
+```{r}
+
+timeframe <- c(as.Date("1997-01-01"),as.Date("2019-12-31"))
+
+```
+
+# PostgreSQL 
+Einlesen der Daten aus dem CSV sowie umwandeln der Zeitdaten in ein R Zeitformat
+```{r}
+#Load function to import db_history .csv file
+#usage: load_db_history("path")
+source("../csv_file_import/load_db_history.R")
+db_git_history_Postgre = load_db_history(input_path = "../../Workspace/PostgreSQL.csv")
+db_git_history_Postgre["timestamp"] = lapply(db_git_history_Postgre["timestamp"],function(x) as.Date(x, format='%Y-%m-%d') )
+
+```
+
+Anziegen der Files mit den meisten Commits
+```{r}
+extractedTable_Postgre_CommitCountByFile <- db_git_history_Postgre %>%
+  group_by(file) %>%
+	summarise(commitCount = n_distinct(commit)) %>%
+  filter(.,commitCount>400)
+
+
+ggplot(extractedTable_Postgre_CommitCountByFile, aes(x=reorder(file,-commitCount),y =commitCount)) + geom_col()+theme(axis.text.x = element_text(angle = 90)) +ggtitle("CommitCount by File") +
+            xlab("File") + ylab("CommitCount")
+```
+#HotSpot auswertung 
+
+```{r}
+db_git_history_Postgre %>%
+  group_by(programmingLanguage)%>%
+  summarise(n = n())%>%
+  arrange(desc(n))
+```
+Wie Hoch ist der Anteil einer Programmiersprache in einem Repository
+
+```{r}
+extractedTable_Postgre_SumOfChangeByFile <- db_git_history_Postgre %>%
+  group_by(file,programmingLanguage) %>%
+	summarise(sumOfChange = sum(change)) %>%
+  filter(str_detect(programmingLanguage, "C")) %>%
+  arrange(desc(sumOfChange)) %>%
+  head(25)
+
+hotspot_postgre <-extractedTable_Postgre_CommitCountByFile %>% 
+  inner_join(extractedTable_Postgre_SumOfChangeByFile,by="file")
+
+ggplot(hotspot_postgre, aes(x=commitCount,y =sumOfChange,colour = factor(file))) + geom_col()+theme(axis.text.x = element_text(angle = 90))+ggtitle("Hotspotauswertung") +
+            xlab("Count of Commits") + ylab("Sum of Change")
+```
+
+Gruppiert nach Datum werden die eindeutigen CommitIds für diesen Tag aufsummiert
+```{r}
+
+extractedTable_Postgre <- db_git_history_Postgre %>%
+  group_by(timestamp) %>%
+	summarise(commitCount = n_distinct(commit))
+
+```
+
+Plot zum Überblick
+```{r}
+
+PostgrePlot <-ggplot(extractedTable_Postgre, aes(y=commitCount,x=timestamp)) + geom_line(color = "green") +stat_smooth(
+  color = "#FC4E07", fill = "#FC4E07",
+  method = "loess"
+  )+ggtitle("Commit over Time") +
+            xlab("Date") + ylab("CommitCount") + scale_x_date(limit=timeframe) 
+
+```
+
+Hier lässt sich erkennen das zu beginn der erstellung des Repository zunächst viel Code Produziert wird, anschließend fällt die Commitanzahl leicht ab um dann wieder leicht anzusteigen. 
+```{r}
+
+PostgrePlot
+
+```
+
+Erzeugen einer extra Spalte für Monat und Jahr
+```{r}
+
+
+extractedTable_Postgre$month = month(extractedTable_Postgre$timestamp)
+extractedTable_Postgre$year = year(extractedTable_Postgre$timestamp)
+
+```
+
+Erneutes aufsummieren der Commits pro Monat
+```{r}
+
+extractedTableMonth_Postgre <- extractedTable_Postgre %>%
+  group_by(year,month) %>%
+	summarise(commits = sum(commitCount))
+
+```
+
+Weiterer Plot als Monatsübersicht. 
+```{r}
+
+PostgrePlotMonthly <-ggplot(extractedTableMonth_Postgre, aes(y=commits,x=year,month)) +
+  geom_smooth() +ggtitle("Commits over Time Postgre") +
+            xlab("Time") + ylab("Commits")
+
+```
+Hier kann man das Abfallen der Commitanzahl bereits besser erkennen
+```{r}
+
+PostgrePlotMonthly
+
+```
+Zum Abschluss noch eine Einzelauflistung der jeweiligen Jahre
+```{r}
+
+PostgrePlotMonthlyFacet <- ggplot(extractedTableMonth_Postgre, aes(y=commits,x=month)) +
+      geom_bar(stat = "identity", fill = "darkorchid4") +
+  facet_wrap(~ year, ncol = 5) +ggtitle("Commit over Time") +
+            xlab("Time") + ylab("Commits")
+
+```
+Auch hier mit der selben Erkenntnis
+```{r}
+
+PostgrePlotMonthlyFacet
+
+```
+# MySQL 
+Die Einlese- und Bearbeitungsmethoden sind gleich 
+```{r}
+
+db_git_history_MySQL = load_db_history(input_path = "../../Workspace/MySQL.csv")
+db_git_history_MySQL["timestamp"] = lapply(db_git_history_MySQL["timestamp"], function(x) as.Date(x, format='%Y-%m-%d'))
+```
+
+
+```{r}
+extractedTable_MySQL_CommitCountByFile <- db_git_history_MySQL %>%
+  group_by(file) %>%
+	summarise(commitCount = n_distinct(commit)) %>%
+  filter(.,commitCount>500)
+
+
+ggplot(extractedTable_MySQL_CommitCountByFile, aes(x=reorder(file,-commitCount),y =commitCount)) + geom_col()+theme(axis.text.x = element_text(angle = 90))+ggtitle("CommitCount by File") +
+            xlab("File") + ylab("CommitCount")
+```
+
+HotSpot auswertung
+
+```{r}
+db_git_history_MySQL %>%
+  group_by(programmingLanguage)%>%
+  summarise(n = n())%>%
+  arrange(desc(n))
+
+extractedTable_MySQL_SumOfChangeByFile <- db_git_history_MySQL %>%
+  group_by(file,programmingLanguage) %>%
+	summarise(sumOfChange = sum(change)) %>%
+  filter(str_detect(programmingLanguage, "C++")) %>%
+  arrange(desc(sumOfChange)) %>%
+  head(25)
+
+hotspot_MySQL <-extractedTable_MySQL_CommitCountByFile %>% 
+  inner_join(extractedTable_MySQL_SumOfChangeByFile,by="file")
+
+ggplot(hotspot_MySQL, aes(x=commitCount,y =sumOfChange,colour = factor(file))) + geom_col()+theme(axis.text.x = element_text(angle = 90))+ggtitle("Hotspotauswertung MySQL") +
+            xlab("Count of Commits") + ylab("Sum of Change")
+```
+
+```{r}
+extractedTable_MySQL <- db_git_history_MySQL %>%
+  group_by(timestamp) %>%
+	summarise(commitCount = n_distinct(commit))
+
+
+MySQLPlot <-ggplot(extractedTable_MySQL, aes(y=commitCount,x=timestamp)) + geom_line(color = "green") +stat_smooth(
+  color = "#FC4E07", fill = "#FC4E07",
+  method = "loess"
+  )+ggtitle("Commit over Time") +
+            xlab("Date") + ylab("CommitCount") + scale_x_date(limit=timeframe) 
+
+```
+Auch bei MySQL steigt zu beginn die Commitzahl an und fällt später wieder ab wobei hier insgesamt mehr Commits gemacht werden
+```{r}
+
+MySQLPlot
+
+
+extractedTable_MySQL$month = month(extractedTable_MySQL$timestamp)
+extractedTable_MySQL$year = year(extractedTable_MySQL$timestamp)
+  
+extractedTableMonth_MySQL <- extractedTable_MySQL %>%
+  group_by(month,year) %>%
+	summarise(commits = sum(commitCount))
+
+MySQLPlotMonthly <-ggplot(extractedTableMonth_MySQL, aes(y=commits,x=year,month)) +
+  geom_smooth() +ggtitle("Commit over Time") +
+            xlab("Time") + ylab("Commits")
+
+```
+MySQL macht ca doppelt so viel Commits im Manat zur Spitzenzeit
+```{r}
+
+MySQLPlotMonthly
+
+
+MySQLPlotMonthlyFacet <- ggplot(extractedTableMonth_MySQL, aes(y=commits,x=month)) +
+      geom_bar(stat = "identity", fill = "darkorchid4") +
+  facet_wrap(~ year, ncol = 5)+ggtitle("Commit over Time") +
+            xlab("Time") + ylab("Commits")
+
+```
+Auch hier lässt sich das Abfallen der Commits beobachten
+```{r}
+
+MySQLPlotMonthlyFacet
+
+```
+
+# Mongo 
+```{r}
+db_git_history_MongoDB = load_db_history(input_path = "../../Workspace/MongoDB.csv")
+db_git_history_MongoDB["timestamp"] = lapply(db_git_history_MongoDB["timestamp"], function(x) as.Date(x, format='%Y-%m-%d'))
+```
+
+```{r}
+extractedTable_MongoDB_CommitCountByFile <- db_git_history_MongoDB %>%
+  group_by(file,programmingLanguage) %>%
+	summarise(commitCount = n_distinct(commit)) %>%
+  filter(str_detect(programmingLanguage, "C++")) %>%
+  filter(.,commitCount>250)
+
+
+ggplot(extractedTable_MongoDB_CommitCountByFile, aes(x=reorder(file,-commitCount),y =commitCount)) + geom_col()+theme(axis.text.x = element_text( angle = 45))+ggtitle("CommitCount by File") +
+            xlab("File") + ylab("CommitCount")
+```
+
+HotSpot auswertung
+
+```{r}
+db_git_history_MongoDB %>%
+  group_by(programmingLanguage)%>%
+  summarise(n = n())%>%
+  arrange(desc(n))
+
+extractedTable_MongoDB_SumOfChangeByFile <- db_git_history_MongoDB %>%
+  group_by(file,programmingLanguage) %>%
+	summarise(sumOfChange = sum(change)) %>%
+  filter(str_detect(programmingLanguage, "C++")) %>%
+  arrange(desc(sumOfChange)) %>%
+  head(30)
+
+hotspot_MongoDB <-extractedTable_MongoDB_CommitCountByFile %>% 
+  inner_join(extractedTable_MongoDB_SumOfChangeByFile,by="file")
+hotspot_MongoDB
+ggplot(hotspot_MongoDB, aes(x=commitCount,y =sumOfChange,colour = factor(file))) + geom_col()+theme(axis.text.x = element_text(angle = 90))+ggtitle("Hotspotauswertung MongoDB") +
+            xlab("Count of Commits") + ylab("Sum of Change")
+```
+ 
+ 
+```{r}
+extractedTable_MongoDB <- db_git_history_MongoDB %>%
+  group_by(timestamp) %>%
+	summarise(commitCount = n_distinct(commit))
+
+
+
+MongoDB <-ggplot(extractedTable_MongoDB, aes(y=commitCount,x=timestamp)) + geom_line(color = "green") +stat_smooth(
+  color = "#FC4E07", fill = "#FC4E07",
+  method = "loess"
+  )+ggtitle("Commit over Time") +
+            xlab("Date") + ylab("CommitCount") + scale_x_date(limit=timeframe) 
+
+```
+Bei MongoDb anders als bei den anderen steigt nach einer kurzen abnahme die Commitanzahl leicht bis heute
+```{r}
+
+MongoDB
+
+
+extractedTable_MongoDB$month = month(extractedTable_MongoDB$timestamp)
+extractedTable_MongoDB$year = year(extractedTable_MongoDB$timestamp)
+  
+extractedTableMonth_MongoDB <- extractedTable_MongoDB %>%
+  group_by(month,year) %>%
+	summarise(commits = sum(commitCount))
+
+
+
+MongoDBPlotMonthly <-ggplot(extractedTableMonth_MongoDB, aes(y=commits,x=year,month)) +
+  geom_smooth()
+
+```
+Die Spitze ist ähnlich hoch wie bei MySQL
+```{r}
+
+MongoDBPlotMonthly
+
+MongoDBPlotMonthlyFacet <- ggplot(extractedTableMonth_MongoDB, aes(y=commits,x=month)) +
+      geom_bar(stat = "identity", fill = "darkorchid4") +
+  facet_wrap(~ year, ncol = 5)
+
+```
+Die Spitze lässt sich hier nur schwer erkennen
+```{r}
+
+MongoDBPlotMonthlyFacet
+
+```
+
+
+
+
