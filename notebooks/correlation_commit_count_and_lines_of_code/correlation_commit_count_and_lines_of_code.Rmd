@@ -1,0 +1,210 @@
+---
+title: "Correlation between commit count and lines of_code"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+# Load Libraries
+```{r,  warning=FALSE,include= TRUE,echo=TRUE,results='hide', message=FALSE}
+#install.packages("dplyr")
+#install.packages("stringr")
+#install.packages("graphics")
+
+
+# load installed libraries 
+library(dplyr)
+library(stringr)
+library(graphics)
+library(ggplot2)
+
+```
+
+```{r}
+setwd("K:/Data Science/BEGGEL-DS-WS19-T1-GIT/")
+```
+
+### Laden der Daten
+
+Die Git-Historie liegt als .csv Datei vor. Diese wird mit den folgenden Befehlen geladen und anschließend automatisch zur weiteren Verarbeitung vorbereitet. Um einen kurzen Überblick zu verschaffen, wird ein kleiner Ausschnitt aus der importierten Datei gezeigt:
+```{r include=FALSE}
+
+#Load db_info .csv file
+# source("../csv_file_import/load_db_info.R")
+# db_infos = load_db_infos()
+
+# source("../csv_file_import/load_db_history2.R")
+# db_git_history = load_db_history2("../../Workspace/histories/MongoDB.csv")
+
+#Loads all .csv git history files available in ./workspace/histories
+source("../csv_file_import/load_db_history_all.R")
+db_git_history = load_db_history_all()
+```
+
+```{r echo = FALSE}
+head(db_git_history, n = 10)
+```
+
+### Dataframe erstellen
+
+Es wird ein Dataframe aus den historischen Daten erstellt. Hierbei werden 2 neue Spalten hinzugefügt. Hierbei entspricht fileSize der Größe der momentanen Datei und commitCount entspricht die Anzahl der Commits die eine Datei erfahren hat.
+
+```{r}
+df = db_git_history %>% 
+  group_by(name,file) %>%
+  arrange(name, file, timestamp) %>% 
+  mutate(year = strftime(timestamp, "%Y")) %>%
+  mutate(fileSize = cumsum(change)) %>%
+  mutate(commitCount = n())
+```
+
+```{r echo = FALSE}
+head(df, n = 10)
+```
+
+### Korrelation berechnen
+
+Im folgenden wird die Correlation zwischenCommitzahl(Aufwand) und LinesOfCode(Komplexität) pro Datei/File berechnet.
+
+```{r}
+suppressWarnings({
+  correlation_per_file = df %>% 
+    group_by(name,file) %>%
+    filter(commitCount > 20) %>%
+    filter(0 < fileSize)  %>%
+    summarize(correlation=cor(change,fileSize), fileSize = max(fileSize), commitCount = mean(commitCount)) %>%
+    arrange(desc(correlation))
+})
+
+correlation_per_file$file <- reorder(correlation_per_file$file, correlation_per_file$correlation)
+```
+
+```{r echo = FALSE}
+head(correlation_per_file, n = 10)
+```
+
+###Plots
+
+##Plot Korrelation pro Datenbank zwischen Commitgröße und Filegröße, sortiert nach der Größe des Korrelationskoeffizients. 
+
+```{r fig.width=15, fig.height=10}
+ggplot(correlation_per_file, aes(x=file, y=correlation, color = name, size = commitCount)) + geom_point(alpha=0.6) + facet_wrap(~ name)
+```
+
+```{r fig.width=15, fig.height=10}
+ggplot(correlation_per_file, aes(x=file, y=correlation, color = name, size = fileSize)) + geom_point(alpha=0.6) + facet_wrap(~ name)
+```
+
+##Density Plot der Korrelation
+
+```{r fig.width=15, fig.height=10}
+ggplot(correlation_per_file, aes(x=correlation, color=name, fill=name)) +   
+  geom_density(alpha=0.5) +
+  geom_vline(aes(xintercept=mean(correlation, na.rm=TRUE)),color="blue", linetype="dashed", alpha=0.5, size=1)
+``` 
+
+```{r fig.width=15, fig.height=10}
+ggplot(correlation_per_file, aes(x=correlation, color=name, fill=name)) +   
+  geom_density(alpha=0.5) +
+  geom_vline(aes(xintercept=mean(correlation, na.rm=TRUE)),color="blue", linetype="dashed", alpha=0.5, size=1) + facet_wrap(~name)
+``` 
+
+```{r}
+df_modified_for_correlation_over_time = df %>% 
+  group_by(name, file, year) %>%
+  summarize(change = sum(change), fileSize = last(fileSize), commitCount = mean(commitCount)) #%>%
+```
+
+```{r echo = FALSE}
+head(df_modified_for_correlation_over_time, n = 10)
+```
+
+```{r}
+
+cumcor <- function(x,y)  {
+    sapply(seq_along(x), function(i) cor(x[1:i], y[1:i]))
+}
+
+suppressWarnings({
+  correlation_over_time_per_file = df_modified_for_correlation_over_time %>% 
+  group_by(name,file) %>%
+  filter(commitCount > 20) %>%
+  mutate(cum_cor=cumcor(change,fileSize)) %>%
+  arrange(desc(name,file,year,cum_cor))
+})
+
+```
+
+```{r echo = FALSE}
+head(correlation_over_time_per_file, n = 10)
+```
+
+```{r}
+correlation_over_time = correlation_over_time_per_file %>% 
+  group_by(name,year) %>%
+  filter(cum_cor != "NA") %>%
+  summarize(cum_cor_mean = mean(cum_cor)) #%>%
+```
+
+```{r echo = FALSE}
+head(correlation_over_time, n = 10)
+```
+
+```{r fig.width=15, fig.height=10}
+ggplot(correlation_over_time, aes(x=year, y=cum_cor_mean, color = name, group = 1)) + geom_line(size=1.5,alpha=0.6) + facet_wrap(~ name) + theme(axis.text.x = element_text(angle = 90))
+```
+
+```{r fig.width=15, fig.height=10}
+ggplot(correlation_over_time, aes(x=cum_cor_mean, color=name, fill=name)) +   
+  geom_density(alpha=0.5)
+```
+
+
+```{r}
+file_size = correlation_per_file %>% 
+  group_by(name,file) %>%
+  arrange(desc(fileSize,correlation))
+```
+
+```{r echo = FALSE}
+head(file_size, n = 10)
+```
+
+```{r fig.width=15, fig.height=10}
+ggplot(data=file_size[1:50,], aes(x=file, y=correlation, fill = name)) +
+  geom_bar(stat="identity",alpha=0.6) + 
+  ggtitle("Plot of correlation of the biggest files") +
+  theme(axis.text.x = element_text(size = 0, angle = 90, vjust = 0.5))
+```
+
+```{r}
+commit_count = correlation_per_file %>% 
+  group_by(file) %>%
+  arrange(desc(commitCount,correlation))
+```
+
+```{r echo = FALSE}
+head(commit_count, n = 10)
+```
+
+```{r fig.width=15, fig.height=10}
+ggplot(data=commit_count[1:50,], aes(x=file, y=correlation, fill = name)) +
+  geom_bar(stat="identity",alpha=0.6) + 
+  ggtitle("Plot of correlation of the files with the most commits") +
+  theme(axis.text.x = element_text(size = 0, angle = 90, vjust = 0.5))
+```
+
+
+
+
+
+
