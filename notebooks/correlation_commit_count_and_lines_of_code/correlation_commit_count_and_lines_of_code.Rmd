@@ -29,7 +29,7 @@ library(ggplot2)
 
 ```
 
-```{r}
+```{r echo = FALSE}
 setwd("K:/Data Science/BEGGEL-DS-WS19-T1-GIT/")
 ```
 
@@ -80,7 +80,7 @@ suppressWarnings({
   correlation_per_file = df %>% 
     group_by(name,file) %>%
     filter(commitCount > 20) %>%
-    filter(0 < fileSize)  %>%
+    filter(100 < fileSize)  %>%
     summarize(correlation=cor(change,fileSize), fileSize = max(fileSize), commitCount = mean(commitCount)) %>%
     arrange(desc(correlation))
 })
@@ -111,6 +111,7 @@ ggplot(correlation_per_file, aes(x=correlation, color=name, fill=name)) +
   geom_density(alpha=0.5) +
   geom_vline(aes(xintercept=mean(correlation, na.rm=TRUE)),color="blue", linetype="dashed", alpha=0.5, size=1)
 ``` 
+ 
 
 ```{r fig.width=15, fig.height=10}
 ggplot(correlation_per_file, aes(x=correlation, color=name, fill=name)) +   
@@ -118,7 +119,41 @@ ggplot(correlation_per_file, aes(x=correlation, color=name, fill=name)) +
   geom_vline(aes(xintercept=mean(correlation, na.rm=TRUE)),color="blue", linetype="dashed", alpha=0.5, size=1) + facet_wrap(~name)
 ``` 
 
+
 ```{r}
+p_values = correlation_per_file %>% 
+    distinct(name)
+
+for (i in 1:20) {
+  db_mean_sd = correlation_per_file %>% 
+      group_by(name) %>%
+      summarize(mean=mean(correlation,na.rm=TRUE), sd = sd(correlation, na.rm=TRUE))
+  
+  sampe_size = 50
+  
+  samples_mean_sd = correlation_per_file %>% 
+    group_by(name) %>%
+    sample_n(sampe_size,replace=TRUE) %>%
+    summarize(sample_mean=mean(correlation,na.rm=TRUE), sample_sd = sd(correlation, na.rm=TRUE))
+  
+  mean_sd = db_mean_sd %>% inner_join(samples_mean_sd, by = "name")
+  
+  p_values_temp = mean_sd %>% 
+    group_by(name) %>%
+    mutate(z = (sample_mean - mean) / (sd/sqrt(sampe_size)), p_value = 2 * pnorm(-abs(z)))  %>% 
+    select(name, p_value)
+
+  p_values <- rbind(p_values, p_values_temp)
+}
+
+p_values = p_values %>% 
+  group_by(name) %>%
+  summarize(p_value=mean(p_value,na.rm=TRUE))
+
+p_values
+```
+
+```{r echo = FALSE}
 df_modified_for_correlation_over_time = df %>% 
   group_by(name, file, year) %>%
   summarize(change = sum(change), fileSize = last(fileSize), commitCount = mean(commitCount)) #%>%
@@ -128,7 +163,7 @@ df_modified_for_correlation_over_time = df %>%
 head(df_modified_for_correlation_over_time, n = 10)
 ```
 
-```{r}
+```{r echo = FALSE}
 
 cumcor <- function(x,y)  {
     sapply(seq_along(x), function(i) cor(x[1:i], y[1:i]))
@@ -148,7 +183,7 @@ suppressWarnings({
 head(correlation_over_time_per_file, n = 10)
 ```
 
-```{r}
+```{r echo = FALSE}
 correlation_over_time = correlation_over_time_per_file %>% 
   group_by(name,year) %>%
   filter(cum_cor != "NA") %>%
@@ -169,7 +204,7 @@ ggplot(correlation_over_time, aes(x=cum_cor_mean, color=name, fill=name)) +
 ```
 
 
-```{r}
+```{r echo = FALSE}
 file_size = correlation_per_file %>% 
   group_by(name,file) %>%
   arrange(desc(fileSize,correlation))
@@ -186,7 +221,7 @@ ggplot(data=file_size[1:50,], aes(x=file, y=correlation, fill = name)) +
   theme(axis.text.x = element_text(size = 0, angle = 90, vjust = 0.5))
 ```
 
-```{r}
+```{r echo = FALSE}
 commit_count = correlation_per_file %>% 
   group_by(file) %>%
   arrange(desc(commitCount,correlation))
@@ -200,7 +235,7 @@ head(commit_count, n = 10)
 ggplot(data=commit_count[1:50,], aes(x=file, y=correlation, fill = name)) +
   geom_bar(stat="identity",alpha=0.6) + 
   ggtitle("Plot of correlation of the files with the most commits") +
-  theme(axis.text.x = element_text(size = 0, angle = 90, vjust = 0.5))
+  theme(axis.text.x = element_text(size = 20, angle = 90, vjust = 0.5))
 ```
 
 
