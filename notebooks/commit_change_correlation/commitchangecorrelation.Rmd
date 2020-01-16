@@ -1,0 +1,376 @@
+---
+title: "CommitChangeCorrelation"
+output: html_document
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE,message=FALSE}
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(tidyr)
+library(rmarkdown)
+library(ggrepel)
+library(graphics)
+library(lubridate)
+
+source("../csv_file_import/load_db_history_all.R")
+DBData <- load_db_history_all()
+DBData["timestampInDate"] = lapply(DBData["timestamp"],function(x) as.Date(x, format='%Y-%m-%d') )
+```
+# Alte Auswertungen mit allen Datenbanken
+
+In der alten Auswertung wurden die Files mit den meisten Commits gezeigt.
+Da dies über alle Datenbanken nur schwer geht habe ich mich für einen Densitiy Plot entschieden.
+Später folgt noch eine Auswertung mit der am stärksten vertretenen Programmiersprache.
+Hier ein Density Plot über die Anzahl an Commits per File in einem Repository
+
+## Commits per File
+```{r fig.width=15, fig.height=10 }
+extractedTable_CommitCountByFile <- DBData %>%
+  group_by(name, file) %>%
+	summarise(commitCount = n_distinct(commit))
+
+extMean <- extractedTable_CommitCountByFile %>%
+  group_by(name) %>%
+  summarise(median = median(commitCount),mean = mean(commitCount))
+
+knitr::kable(extMean)
+ggplot(extractedTable_CommitCountByFile, aes(x=commitCount,color=name,alpha=0.5))+
+geom_density(adjust = 3) +
+  xlim(0,max(extMean$mean)) +
+ ggtitle("Density of Commits") +
+  xlab("CommitCount") + 
+  ylab("Part of")
+
+ggplot(extractedTable_CommitCountByFile, aes(x=commitCount,color=name,alpha=0.5))+
+geom_density(position = "stack",adjust = 3) +
+  geom_vline(data=extMean,aes(xintercept=mean, color=name),linetype="solid") +
+  xlim(0,max(extMean$mean)) +
+  geom_label_repel(data=extMean, mapping=aes(x=mean, y=5, label=name), size=4, angle=90, vjust=-0.4, hjust=0) +
+  ggtitle("Density of Commits with median as VLine") +
+  xlab("CommitCount limited bei maxMedianValue") + 
+  ylab("Part of")+ theme(legend.position="none")
+
+```
+
+
+
+Gruppiert nach Datum werden die eindeutigen CommitIds für diesen Tag aufsummiert
+```{r fig.width=15, fig.height=10}
+
+extractedTable <- DBData %>%
+  group_by(timestampInDate,name) %>%
+	summarise(commitCount = n_distinct(commit))
+
+```
+
+
+Erzeugen einer extra Spalte für Monat und Jahr
+```{r fig.width=15, fig.height=10}
+
+
+extractedTable$month = month(extractedTable$timestampInDate)
+extractedTable$year = year(extractedTable$timestampInDate)
+
+```
+
+Erneutes aufsummieren der Commits pro Monat
+```{r fig.width=15, fig.height=10}
+
+extractedTableMonth <- extractedTable %>%
+  group_by(year,month,name) %>%
+	summarise(commits = sum(commitCount))%>%
+  filter(!is.na(year)&!is.na(month))
+  
+
+```
+
+Weiterer Plot als Monatsübersicht. 
+```{r fig.width=15, fig.height=10}
+labels <- extractedTableMonth %>%
+  group_by(name)%>%
+  summarise(min=min(year))
+  
+PlotMonthly <-ggplot(extractedTableMonth, aes(y=commits,x=year,month,color=name)) +
+  geom_smooth(formula = y~x,method ='auto') +
+  geom_label_repel(data=labels, mapping=aes(label=name,x=min,y=-200)) +
+  geom_vline(data=labels,aes(xintercept=min, color=name),linetype="solid") +
+  ggtitle("Commits over Time (Year,Month)") +  
+  xlab("Time") + 
+  ylab("Commits")+ theme(legend.position="none")
+
+```
+Angezeigt wird die Anzahl der Commits pro Monat für alle Repositorys
+```{r fig.width=15, fig.height=10}
+
+PlotMonthly
+
+```
+Hier nun aufgeteilt auf einzelne Jahre mit den einzelnen Datenbanken als Anteil
+```{r fig.width=15, fig.height=10}
+
+PlotMonthlyFacet <- 
+  ggplot(extractedTableMonth, aes(y=commits,x=month,fill=name)) +
+      geom_bar(stat = "identity") +
+  facet_wrap(~ year, ncol = 5) +ggtitle("Commit over Time (Facet by Year, Columned by Month)") +
+            xlab("Time") + ylab("Commits")
+
+PlotMonthlyFacet
+
+```
+
+# Ab Hier Fangen neue Auswertungen an für die Frage der Korrelation zwischen Commits und Changes
+## Wie groß ist ein File in den DB-Repos ohne Negative Zeilenzahl
+
+```{r fig.width=15, fig.height=10}
+loc_table <- DBData %>%
+  group_by(name, file) %>%
+  summarise(loc = sum(change)) %>%
+  filter(loc>0)
+
+PlotFileSizeStacked <- ggplot(loc_table, aes(x=loc,fill = name,alpha=0.5)) + 
+  geom_density(position = "stack") +
+  xlim(0,500)+
+  ggtitle("Dateigröße als DichtePlot Stacked") +
+  xlab("Lines of Code") + 
+  ylab("Häufigkeit")
+
+```
+
+Der Plot einmal als Stacked (Ist bisschen übersichtlicher aber die einzelnen Repos verschwimmen etwas)
+```{r fig.width=15, fig.height=10}
+PlotFileSizeStacked
+
+PlotFileSize <- ggplot(loc_table, aes(x=loc,color = name,alpha=0.5)) + 
+  geom_density() +
+  xlim(0,500)+
+  ggtitle("Dateigröße als DichtePlot") +
+  xlab("Lines of Code") + 
+  ylab("Häufigkeit")
+
+```
+
+Mit den Linien sieht man die einzelnen Plots etwas besser finde ich
+```{r fig.width=15, fig.height=10}
+PlotFileSize
+```
+
+### Aufgeteilt auf einzelne Facets
+Kann man noch etwas besser vergleichen
+```{r fig.width=15, fig.height=10}
+PlotFileSizeFacedWrap <- ggplot(loc_table, aes(x=loc,fill = name,alpha=0.5)) + 
+  geom_density() +
+  xlim(0,500)+
+  facet_wrap(~name)+
+  ggtitle("Dateigröße als DichtePlot aufgeteilt") +  
+  xlab("Lines of Code") + 
+  ylab("Häufigkeit")
+
+PlotFileSizeFacedWrap
+```
+
+## Durchschnittliche Dateigröße pro Datenbank
+```{r fig.width=15, fig.height=10}
+file_table_mean <- DBData %>%
+  group_by(name,commit) %>%
+  summarise(fileSize = sum(change))%>%
+   summarise(mean = mean(fileSize)) 
+            
+
+PlotMeanFileSize <- ggplot(file_table_mean, aes(x = reorder(name, -mean),y=mean)) +
+  geom_col() +
+  theme(axis.text.x = element_text(angle = 90))+
+  ggtitle("Durchschnittliche Dateigröße") +
+  ylab("Lines of Code") + 
+  xlab("Datenbanken")
+
+PlotMeanFileSize
+```
+
+## Commitgröße (Wieviel Files sind in einem Commit)
+```{r fig.width=15, fig.height=10}
+commit_table <- DBData %>%
+  group_by(name,commit)%>%
+  summarise(files =n())
+
+PlotCommitSize <- ggplot(commit_table, aes(x=files,color = name,fill=name,alpha=.4)) + 
+  geom_density(adjust = 3) +
+  xlim(0,15) +
+  ggtitle("Commitgröße als DichtePlot") +
+  xlab("Commitgröße") + 
+  ylab("Anzahl Commits")
+
+PlotCommitSize
+```
+
+
+### Wieder aufgeteilt in einzelne Facets
+```{r fig.width=15, fig.height=10}
+PlotCommitSizeFacedWrap <- ggplot(commit_table, aes(x=files,fill = name,alpha=0.5)) + 
+  geom_density(adjust = 3) + 
+  xlim(0,15)+
+  facet_wrap(~name) +
+  ggtitle("Commitgröße als DichtePlot") +
+  xlab("Commitgröße") + 
+  ylab("Häufigkeit")
+
+PlotCommitSizeFacedWrap
+```
+
+
+## Durchschnittliche Commitgröße pro Datenbank
+```{r fig.width=15, fig.height=10}
+commit_table_mean <- DBData %>%
+  group_by(name,commit) %>%
+  summarise(commitSize = n()) %>%
+  summarise(mean = mean(commitSize)) 
+
+PlotMeanCommitSize <- ggplot(commit_table_mean, aes(x = reorder(name, -mean),y=mean)) +
+  geom_col() +
+  theme(axis.text.x = element_text(angle = 90))+
+  ggtitle("Durchschnittliche Commitgröße") +
+  ylab("Commitgröße") + 
+  xlab("Datenbanken")
+
+PlotMeanCommitSize
+```
+
+
+## Zusammenhang zwschen durchschnittlicher Commitgröße und Filegröße
+```{r fig.width=15, fig.height=10}
+commit_file_mean <- commit_table_mean %>%
+  inner_join(file_table_mean,by="name")
+
+
+PlotCompareCommitFileSize <- ggplot(commit_file_mean, aes(x=mean.x, y=mean.y,color=name)) +
+  geom_point()+
+  geom_label_repel(aes(label=name),hjust=-0.1, vjust=1)+
+  ggtitle("Commitgröße - Filegröße") +
+  ylab("Filegröße Mean") + 
+  xlab("Commitgröße Mean")+ theme(legend.position="none")
+
+PlotCompareCommitFileSize
+```
+
+
+## Zusammenhang zwischen Changes und Commits
+```{r fig.width=15, fig.height=10,message=FALSE}
+change_commit_table <- DBData %>%
+  group_by(file,programmingLanguage,name) %>%
+  summarise(sum = sum(abs(change)),commitCnt = n()) 
+
+PlotCommitCntFileSizeFacetWrap <- ggplot(change_commit_table, aes(x=sum,y=commitCnt,color=name)) +
+  geom_jitter() +
+  xlim(0,25000) +
+  ylim(0,1000) +
+  facet_wrap(~name)+
+  ggtitle("Anzahl Commits - Menge Änderungen Pro File") +
+  xlab("Änderungen in Zeilen") + 
+  ylab("Anzahl Commits")
+
+PlotCommitCntFileSizeFacetWrap
+```
+
+## Korrelation beider Werte
+```{r fig.width=15, fig.height=10}
+corr_table <- change_commit_table %>%
+  group_by(name) %>%
+  summarise(Correlation = cor(sum,commitCnt))
+
+
+PlotCorrelationCommitFile <- ggplot(corr_table, aes(x=reorder(name,-Correlation),y=Correlation)) +
+  geom_bar(stat="identity")+
+  theme(axis.text.x = element_text(angle = 90))+
+  ggtitle("Korrelation zwischen Anzahl Zeilen und Anzahl Commits") +
+  ylab("Korrelation") + 
+  xlab("Datanbank")
+
+PlotCorrelationCommitFile
+```
+
+## Selbe Auswertung bezogen auf die am meisten verwendete Programmiersprache
+```{r  fig.width=15, fig.height=10,message=FALSE}
+mainProgrammingLanguagesByName <- DBData %>%
+  group_by(name,programmingLanguage)%>%
+  filter(programmingLanguage!="unknown")%>%
+  summarise(cnt = n())%>%
+  arrange(name,desc(cnt))%>%
+  group_by(name)%>%
+  summarise(mainLang = first(programmingLanguage))
+knitr::kable(mainProgrammingLanguagesByName)
+DBDataFilteredByMainLang <- DBData %>%
+  inner_join(mainProgrammingLanguagesByName,by="name") %>%
+  filter(programmingLanguage==mainLang)
+
+commit_table_mean_main <- DBDataFilteredByMainLang %>%
+  group_by(name,commit) %>%
+  summarise(commitSize = n()) %>%
+  summarise(mean = mean(commitSize)) 
+
+PlotMeanCommitSizeMainLanguage <- ggplot(commit_table_mean_main, aes(x = reorder(name, -mean),y=mean)) +
+  geom_col() +
+  theme(axis.text.x = element_text(angle = 90))+
+  ggtitle("Durchschnittliche Commitgröße MainLanguage") +
+  ylab("Commitgröße") + 
+  xlab("Datenbanken")
+
+file_table_mean_main <- DBDataFilteredByMainLang %>%
+  group_by(name,commit) %>%
+  summarise(fileSize = sum(change))%>%
+   summarise(mean = mean(fileSize)) 
+            
+
+PlotMeanFileSizeMainLanguage <- ggplot(file_table_mean_main, aes(x = reorder(name, -mean),y=mean)) +
+  geom_col() +
+  theme(axis.text.x = element_text(angle = 90))+
+  ggtitle("Durchschnittliche Dateigröße MainLanguage") +
+  ylab("Lines of Code") + 
+  xlab("Datenbanken")
+
+commit_file_mean_main <- commit_table_mean_main %>%
+  inner_join(file_table_mean_main,by="name")
+
+
+PlotCompareCommitFileSizeMainLanguage  <- ggplot(commit_file_mean_main, aes(x=mean.x, y=mean.y,color=name)) +
+  geom_point()+
+  geom_label_repel(aes(label=name),hjust=-0.1, vjust=1)+
+  ggtitle("Commitgröße - Filegröße MainLanguage") +
+  ylab("Filegröße Mean") + 
+  xlab("Commitgröße Mean")+ theme(legend.position="none")
+
+change_commit_table_main <- DBDataFilteredByMainLang %>%
+  group_by(file,programmingLanguage,name) %>%
+  summarise(sum = sum(abs(change)),commitCnt = n())
+
+PlotCommitCntFileSizeFacetWrapMainLanguage <- ggplot(change_commit_table_main, aes(x=sum,y=commitCnt,color=name)) +
+  geom_jitter() +
+  xlim(0,25000) +
+  ylim(0,1000) +
+  facet_wrap(~name)+
+  ggtitle("Anzahl Commits - Menge Änderungen MainLanguage") +
+  xlab("Änderungen in Zeilen") + 
+  ylab("Anzahl Commits")
+
+corr_table_main <- change_commit_table_main %>%
+  group_by(name) %>%
+  summarise(Correlation = cor(sum,commitCnt))
+
+PlotCorrelationCommitFileMainLanguage <- ggplot(corr_table_main, aes(x=reorder(name,-Correlation),y=Correlation)) +
+  geom_bar(stat="identity")+
+  theme(axis.text.x = element_text(angle = 90))+
+  ggtitle("Korrelation zwischen Anzahl Zeilen und Anzahl Commits MainLanguage") +
+  ylab("Korrelation") + 
+  xlab("Datanbank")
+
+require(gridExtra)
+grid.arrange(PlotMeanCommitSizeMainLanguage, PlotMeanCommitSize, ncol=2)
+grid.arrange(PlotMeanFileSizeMainLanguage, PlotMeanFileSize, ncol=2)
+grid.arrange(PlotCompareCommitFileSizeMainLanguage, PlotCompareCommitFileSize, ncol=2)
+grid.arrange(PlotCommitCntFileSizeFacetWrapMainLanguage, PlotCommitCntFileSizeFacetWrap, ncol=2)
+grid.arrange(PlotCorrelationCommitFileMainLanguage, PlotCorrelationCommitFile, ncol=2)
+```
+

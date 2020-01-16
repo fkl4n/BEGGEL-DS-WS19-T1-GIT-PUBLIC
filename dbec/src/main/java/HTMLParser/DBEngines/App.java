@@ -22,7 +22,7 @@ import org.jsoup.select.Elements;
 
 public class App {
 	private static final String DB_ENGINES_SYSTEMS_URL = "https://db-engines.com/de/systems";
-	private static Logger logger = LogManager.getLogger();
+	private static Logger logger = LogManager.getLogger(App.class);
 
 	public static void main(String[] args) throws Exception {
 		Set<String> urls = getDBs();

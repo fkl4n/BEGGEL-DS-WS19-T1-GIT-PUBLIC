@@ -11,7 +11,7 @@ Rank,URLName,Git_URL
 17,Solr,https://github.com/apache/lucene-solr
 21,HBase,https://github.com/apache/hbase
 22,Neo4j,https://github.com/neo4j/neo4j
-23,Couchbase,https://github.com/couchbase/manifest
+23,Couchbase,https://github.com/couchbase/ns_server
 28,Memcached,https://github.com/memcached/memcached
 30,Firebird,https://github.com/FirebirdSQL/firebird
 33,InfluxDB,https://github.com/influxdata/influxdb
@@ -66,7 +66,7 @@ Rank,URLName,Git_URL
 139,Altibase,https://github.com/ALTIBASE/altibase
 142,Tarantool,https://github.com/tarantool/tarantool
 143,WiredTiger,https://github.com/wiredtiger/wiredtiger
-145,NCache,https://github.com/Alachisoft/NCache
+145,Ncache,https://github.com/Alachisoft/NCache
 146,Dgraph,https://github.com/dgraph-io/dgraph
 149,LiteDB,https://github.com/mbdavid/LiteDB
 150,Giraph,https://github.com/apache/giraph
@@ -81,7 +81,7 @@ Rank,URLName,Git_URL
 178,Splice Machine,https://github.com/splicemachine/spliceengine
 184,BigchainDB,https://github.com/bigchaindb/bigchaindb
 185,Event Store,https://github.com/EventStore/EventStore
-187,eXist-db,https://github.com/eXist-db/exist
+187,Exist-db,https://github.com/eXist-db/exist
 188,SQL.JS,https://github.com/kripken/sql.js/
 192,CrateDB,https://github.com/crate/crate
 193,Blazegraph,https://github.com/blazegraph/database
@@ -89,7 +89,7 @@ Rank,URLName,Git_URL
 198,Graph Engine,https://github.com/microsoft/GraphEngine
 200,BoltDB,https://github.com/boltdb/bolt
 202,KairosDB,https://github.com/kairosdb/kairosdb
-203,Percona Server for MongoDB,https://github.com/percona/percona-server-mongodb
+203,Percona Server for MongoDB ,https://github.com/percona/percona-server-mongodb
 204,Redland,https://github.com/dajobe/librdf
 211,MapDB,https://github.com/jankotek/mapdb
 212,Rasdaman,https://github.com/kalxas/rasdaman

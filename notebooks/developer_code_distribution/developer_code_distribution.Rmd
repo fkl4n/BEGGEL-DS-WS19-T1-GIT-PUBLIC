@@ -10,19 +10,34 @@ output:
 #install.packages("plyr")
 #install.packages("dplyr")
 #install.packages("ggplot2")
+#install.packages("tidyverse")
+#install.packages("rlang")
+# install.packages("ggpubr")
 
 # load installed libraries 
+
 library(tools)
 library(plyr)
 library(dplyr)
+library(tidyverse)
 library(ggplot2)
-library(RColorBrewer)
+library(plotly)
+library(ggraph)
+library(igraph)
+library(ggpubr)
+library(grid)
+library(gridExtra)
+library(scales)
 library(rmarkdown)
+library(data.table)
+library(stringr)
+library(viridis)
 ```
+# Motto: #Instant Visuell Getriggert
 
 Bei der Entwicklung von Softwareprojekten werden eine Vielzahl unterschiedlicher Techniken und Programmiersprachen eingesetzt, um geforderte bzw. gewünschte Funktionen zu realisieren. Verschiedene Faktoren, wie Größe, Budget usw. eines Softwareteams können zu einer unterschiedlichen Aufgabenverteilung innerhalb des Teams führen. 
 
-In diesem Notebook soll deshalb die Beziehung zwischen Entwicklern, Commits und Programmiersprachen anhand der Git-Historie von Softwareprojekten untersucht werden. Hierbei soll im ersten Abschnitt insbesondere die Frage beantwortet werden, ob Entwickler auf eine Programmiersprache spezialisiert sind, oder vielmehr Aufgaben nach Bedarf erfüllen.
+In diesem Notebook soll deshalb die Beziehung zwischen Entwicklern, Commits und Programmiersprachen anhand der Git-Historie von Softwareprojekten, speziell Datenbanken, untersucht werden. Hierbei soll im ersten Abschnitt insbesondere die Frage beantwortet werden, ob Entwickler auf eine Programmiersprache spezialisiert sind, oder vielmehr Aufgaben nach Bedarf erfüllen.
 Im zweiten Abschnitt werden zusätzlich zur Programmiersprache auch die Dateien und die Projektstruktur einbezogen. Dabei sollen die folgenden Fragen beantwortet werden:
 
 * Wie teilen Entwickler den Code untereinander auf?
@@ -31,182 +46,1098 @@ Im zweiten Abschnitt werden zusätzlich zur Programmiersprache auch die Dateien 
 
 ## Vorbereitung
 
-Zu Beginn betrachten wir das Farbschema für die nachfolgenden Diagramme. Das Schema ist einheitlich zur besseren Verständlichkeit der Diagramme:
+Zu Beginn betrachten wir das Farbschema für die nachfolgenden Diagramme. Das Schema wurde zur besseren Verständlichkeit der Diagramme einheitlich gewählt:
 
-```{r echo = FALSE, fig.width=5, fig.height=2}
-theme = "Set1"
-display.brewer.pal(n = 9, name = theme)
+```{r echo = FALSE}
+# colors_vector = sample(c("#A6CEE3", "#1F78B4", "#B2DF8A", "#33A02C", "#FB9A99", "#A1CE31", "#FDBF6F", "#FF7F00", "#CAB2D6", "#6A3D9A", "#FFFF99", "#B15928", "#E6AB02", "#A6761D", "#666666", "#000000", "#FFFFFF", "#0000FF", "#00FF00", "#FF0000", "#DDDD00", "#00EEDD", "#DD00EE", "#AAAAAA"), 24)
+
+#colors partly taken from:
+#https://www.materialpalette.com/
+
+colors_vector = c("#388e3c", #GREEN
+                  "#d32f2f", #RED
+                  "#377eb8", #BLUE
+                  "#dfcf02", #DARKYELLOW
+                  "#00796b", #TEAL
+                  "#e64a19", #DARKORANGE
+                  "#455a64", #BLUEGREY
+                  "#f781bf", #ROSE
+                  "#a65628", #BROWN
+                  "#ffff99", #YELLOW
+                  "#5d4037", #DARKBROWN
+                  "#303f9f", #INDIGO
+                  "#984ea3", #PURPLE
+                  "#00bcd4", #CYAN
+                  "#ff7f00", #ORANGE
+                  "#e91e63", #PINK
+                  "#20e330", #LIMEGREEN
+                  "#ff5252", #LIGHTRED
+                  "#999999") #GREY
+                   
+pie(rep(1,length(colors_vector)), col = colors_vector) 
+```
+
+Innerhalb dieses Notebooks werden speziell drei Datenbankengines im Detail betrachtet: MySQL, MongoDB und PostgreSQL. Zur besseren Verständlichkeit werden Graphen immer mit den zu den Datenbankengines zugehörigen Farben gezeichnet. Die Zuteilung ist im folgenden Diagramm zu sehen:  
+
+```{r define colors_databases, echo=FALSE, message=FALSE, warning=FALSE}
+colors_databases = c(MySQL = "#ff6105", #DARKORANGE
+                     MongoDB = "#02bf02", #GREEN
+                     PostgreSQL = "#10a2e0") #BLUE
+
+pie(rep(1,length(colors_databases)), col = colors_databases, labels = names(colors_databases)) 
 ```
 
 ### Laden der Daten
 
-Die Git-Historie liegt als .csv Datei vor. Diese wird mit den folgenden Befehlen geladen und anschließend automatisch zur weiteren Verarbeitung vorbereitet. Um einen kurzen Überblick zu verschaffen, wird ein kleiner Ausschnitt aus der importierten Datei gezeigt:
-```{r include=FALSE}
-#Load db_info .csv file
-# source("../csv_file_import/load_db_info.R")
-# db_infos = load_db_infos()
+Die Git-Historien der einzelnen Datenbanken liegen als .csv Dateien vor. Diese werden geladen und anschließend automatisch zur weiteren Benutzung vorbereitet. Dazu gehört unter anderem die Bereinigung sowie das Vorbereiten neuer Spalten. Um den Leser einen Überblick über das Schema der Daten zu vermitteln, werden einige zufällige Einträge des erzeugten Dataframe gezeigt:    
 
-# source("../csv_file_import/load_db_history2.R")
-# db_git_history = load_db_history2("../../Workspace/MongoDB.csv")
-
+```{r load_git_histories, include=FALSE}
 #Loads all .csv git history files available in ./workspace/histories
+
 source("../csv_file_import/load_db_history_all.R")
 db_git_history = load_db_history_all()
 ```
 
 ```{r echo = FALSE}
-head(db_git_history, n = 10)
+head(db_git_history[sample(nrow(db_git_history), 10),], n = 10)
+```
+Es sind unter anderem wichtige Informationen zur Datenbank, dem entsprechenden Commit, dem Author und den gemachten Änderungen verhanden.  
+
+Die Git-Historien der folgenden Datenbanken wurden erfolgreich geladen:
+
+```{r show_git_history_names, echo=FALSE, paged.print=TRUE}
+# All represented databases
+
+unique(db_git_history$name)
+
+```
+
+### Überblick über die geladenen Datenbankhistorien:
+
+```{r echo=FALSE}
+# Create overview for all databases
+
+db_meta_data = function(x){
+  tmp = db_git_history[db_git_history$name == x, ]
+  
+  tmp = tmp[order(tmp$timestamp), ]
+  
+  df <- data.frame(name = x,
+                   startdate = tmp$timestamp[1],
+                   count_devs = length(unique(tmp$author)),
+                   count_commits = length(unique(tmp$commit)),
+                   count_programmingLanguage = length(unique(tmp$programmingLanguage)))
+  
+  return(df)
+}
+
+db_overview = do.call("rbind", lapply(unique(db_git_history$name), db_meta_data))
+db_overview
+
+```
+Es lässt sich schnell feststellen, dass die Meta-Informationen zu den Datenbanken stark varrieren.  
+
+```{r echo=FALSE, fig.align='center', fig.height=6, fig.keep='all', fig.width=12, results='hide'}
+
+# Define a vector with a sufficient number of colors
+colors_vector2 = c("#A6CEE3", "#1F78B4", "#B2DF8A", "#33A02C", "#FB9A99", "#A1CE31", "#FDBF6F", "#FF7F00", "#CAB2D6", "#6A3D9A", "#FFFF99", "#B15928", "#E6AB02", "#A6761D", "#666666", "#000000", "#FFFFFF", "#0000FF", "#00FF00", "#FF0000", "#DDDD00", "#00EEDD", "#DD00EE", "#AAAAAA", "#dfcf02")
+
+p <- db_overview %>% 
+  mutate(text = paste("Database: ", name, "\nAnzahl Sprachen: ", count_programmingLanguage, "\nAnzahl Commits: ", count_commits, "\nAnzahl Entwickler: ", count_devs, sep="")) %>%
+  ggplot(aes(x=count_devs, y=count_programmingLanguage, size=count_commits, fill=name, text=text)) + 
+  geom_point(alpha=0.5, shape=21, color="black") +
+  scale_size(range = c(.1, 24), name="Commits") +
+  scale_fill_manual(values=colors_vector2) +
+  labs(fill = "Datenbank:") +
+  ylab("Anzahl Programmiersprachen") +
+  xlab("Anzahl Entwickler")  +
+  ggtitle("Überblick über die geladenen Datenbanken, Größe der Punkte: Anzahl Commits")
+
+p
+ggplotly(p + guides(size=FALSE), tooltip = "text")
+
+```
+Bei der Betrachtung des Überblicks als Bubblechart liegen die meisten Datenbanken in der unteren, linken Ecke. Einige Ausreißer sind zum Beispiel: MySQL, MariaDB und SparkSQL.  
+
+```{r include = FALSE}
+# prepare the data for the following diagramms
+
+# only positive values so that the scale of the diagrams does not distort
+db_git_history$change = abs(db_git_history$change)
+
+# remove rows where the author is unknown
+db_git_history = db_git_history[!(db_git_history$author == "Nobody"), ]
+
+# remove rows where the programming language is unknown
+db_git_history = db_git_history[!(db_git_history$programmingLanguage == "unknown"), ]
+
+# remove rows where no changes were done 
+db_git_history = db_git_history[!(db_git_history$change == 0), ]
+
+# remove rows where timestamp == NA
+db_git_history = db_git_history[!is.na(db_git_history$timestamp), ]
+
+```
+
+
+```{r include=FALSE}
+# Allows the preparation of data
+# empty vecotrs result in the removal of the corresponding column
+# all excluded values are summarized
+
+prep_data = function(data,
+                     keep_names = c(),
+                     keep_commits = c(), 
+                     keep_authors = c(),
+                     keep_timestamps = c(),
+                     keep_files = c(),
+                     keep_programmingLanguages = c(),
+                     keep_changes = FALSE){
+  
+  if (length(keep_names) > 0){
+    data <- within(data, name[!(name %in% keep_names)] <- "other_dbs")
+  }else{
+    data$name = NULL
+  } 
+  
+  if (length(keep_commits) > 0){
+    data <- within(data, commit[!(commit %in% keep_commits)] <- "other_commits")
+  } else{
+    data$commit = NULL
+  } 
+  
+  if (length(keep_authors) > 0){
+    data <- within(data, author[!(author %in% keep_authors)] <- "other_authors")
+  } else{
+    data$author = NULL
+  } 
+  
+  if (length(keep_files) > 0){
+    data <- within(data, file[!(file %in% keep_files)] <- "other_files")
+  } else{
+    data$file = NULL
+  }
+  
+  # if (length(keep_timestamps) > 0){
+  #   data <- within(data, timestamp[!(timestamp %in% keep_timestamps)] <- "other_timestamps")
+  # } else{
+  #   data$timestamp = NULL
+  # } 
+  
+  if (length(keep_programmingLanguages) > 0){
+    levels(data$programmingLanguage) <- c(levels(data$programmingLanguage), "other_pl")
+    data <- within(data, programmingLanguage[!(programmingLanguage %in% keep_programmingLanguages)] <- "other_pl")
+  } else{
+    data$programmingLanguage = NULL
+  } 
+  
+  if (!keep_changes){
+    data$change = NULL
+  } 
+  
+  return(data)
+}
+
+```
+
+### Rangfolge festlegen:
+
+Für die Entwickler und Programmiersprachen wird jeweils eine Rangliste erstellt und die x Entwickler/Programmiersprachen mit den meisten Änderungen.
+
+```{r echo=FALSE}
+# Select the authors with the most changes done
+
+rank_developer = function(data, number_of_developer = 10){
+  developer = data %>% group_by(author) %>% summarize(sum_changes = sum(abs(change)))
+
+  developer = developer[order(-developer$sum_changes),]
+  developer = head(developer, number_of_developer)
+  
+  return(as.character(developer$author))
+}
+
+# Select the most used programminglanguages depending on commits
+
+rank_language = function(data, number_of_languages = 10){
+  languages = aggregate(data[, c("change"), drop=FALSE], by = list(language = data$programmingLanguage), FUN = function(x) sum(x))
+  languages = languages[order(-languages$change),]
+  languages = head(languages, number_of_languages)
+  
+  return(as.character(languages$language))
+}
+
+addline_format <- function(x,...){
+    gsub('\\s','\n',x)
+}
 ```
 
 ## 1. Verteilung Programmiersprachen
 
-Um die Frage beantworten zu können, ob Entwickler auf eine Programmiersprache spezialisiert sind oder viele Sprachen einsetzen, muss zuerst ein Überblick über die im Projekt eingesetzten Programmiersprachen erstellt werden. Das folgende Diagram zeigt den Anteil der verschiedenen, eingesetzten Programmiersprachen im Projekt. Der Anteil wurde als Anteil der Lines of Code im Verhältnis zur Gesamtanzahl der LOC berechnet.  
-
-```{r echo = FALSE}
-plot_pie_chart = function(db_git_history, threshold, title){
-
-  tmp = aggregate(db_git_history$change, by = list(programmingLanguage = db_git_history$programmingLanguage), FUN = sum)
-  tmp = tmp[!(tmp$programmingLanguage == "unknown"),]
-  tmp$x = abs(tmp$x)
-  tmp_sum = sum(tmp$x)
-
-  tmp = mutate(tmp, x = x / tmp_sum * 100)
-
-  add_df = data.frame("others" , sum(tmp[tmp$x <= threshold,]$x))
-  names(add_df) = c("programmingLanguage", "x")
-
-  tmp = tmp[tmp$x > threshold,]
-
-  tmp = rbind(tmp, add_df)
+Damit Fragestellungen zum Verhältnis zwischen Entwicklern und Programmiersprachen beantwortet werden können, muss zuerst ein Überblick über die in den verschiedenen Datenbankengines eingesetzten Programmiersprachen erstellt werden.
+Diese Fragestellung kann jedoch nicht mit den Rohdaten der Git-Historien beantwortet werden. 
+Es sind lediglich die Dateipfade für jede Datei vorhanden. 
+Aus den Pfaden können die Dateiendungen extrahiert werden und anhand dieser kann eine Programmiersprache zugewiesen werden.
+In den meisten Fällen funktioniert dieses Verfahren hervorragend. 
+Problematisch sind Dateiendungen, welche von mehreren Programmiersprachen genutzt werden. 
+Ein häufig auftretendes Beispiel sind die Programmiersprachen C und C++. Beide verwenden beispielsweise .h Dateiendungen.
+In diesem Fall ist eine eindeutige Zuweisung nicht möglich und es eine der Möglichkeiten zufällig ausgewählt werden.
+Da in einer C++-Datei auch C-Code stehen kann, müsste eine Analyse der einzelnen Dateien stattfinden, um ein sicheres Ergebnis zu erhalten.
+Für dieses Notebook und die betrachteten Fragestellungen reicht jedoch eine reines Zuweisung von Endung zu Programmiersprache aus.
 
 
-  bp<- ggplot(tmp, aes(x="", y=x, fill=programmingLanguage))+
-  geom_bar(width = 1, stat = "identity")
+Das folgende Diagramm zeigt den Anteil der eingesetzten Programmiersprachen je Projekt.
+Der Anteil wurde als prozentualer Anteil der veränderten Lines of Code im Verhältnis zur Gesamtanzahl der veränderten LOC (Lines of Code) berechnet.
+Es werden ingesamt `r length(db_overview$name)` Datenbankengines betrachtet. 
 
-  pie <- bp + coord_polar("y", start=0)
+```{r plot_percentage_language_per_database_all, echo=FALSE, fig.align='center', fig.height=6, fig.keep='all', fig.width=10, results='hide'}
+# Overview for all databases (usage of programming languages)
+
+overview = function(git_history, selected_databases, width = 0.9, amount_languages_to_show = 8L, add_languages_manually = c()){
+  data = git_history[git_history$name %in% selected_databases, ]
+  languages = rank_language(data, amount_languages_to_show)
   
-  return(pie + scale_fill_brewer(palette= theme) + ggtitle(title))
+  languages = c(languages, add_languages_manually)
+  db_names = unique(data$name)
+
+  data = prep_data(data,
+            keep_names = db_names,
+            keep_programmingLanguages = unique(languages),
+            keep_changes = TRUE)
+
+  data = aggregate(data[, c("change"), drop=FALSE], by = list(programmingLanguage = data$programmingLanguage, name = data$name), FUN = sum)
+
+  plot <- ggplot(data, aes(fill=programmingLanguage, y=change, x=name)) +
+       geom_bar(position="fill", stat="identity", width = width) +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 12)) +
+       scale_fill_manual(values=colors_vector) +
+       labs(fill = "Programmiersprache:") +
+       xlab("Datenbank") +
+       ylab("Anteil Programmiersprache") +
+       ggtitle("Anteil Programmiersprache je Datenbankengine")
+
+  return(plot)
 }
 
-plot_pie_chart(db_git_history, 1, "Programming Languages per Title")
+# Rank languages for all databases
+amount_languages = 8
+# languages = rank_language(db_git_history, amount_languages)
+  
+overview(db_git_history, unique(db_git_history$name), amount_languages = amount_languages, add_languages_manually = c("Objective-C++", "Swift", "Erlang"))
+```
+
+Es gilt zu beachten, dass nur die `r amount_languages` am meisten verwendeten Sprachen (bestimmt anhand LOC) angezeigt werden. Die restlichen Programmiersprachen wurden unter ''other_pl'' zusammengefasst.  
+
+Das oben gezeigte Diagramm lässt klar erkennen, dass fast jede Datenbank eine primär genutzte Programmiersprache besitzt. Oft beträgt der Anteil der am meisten genutzten Sprache über 75%.
+Stark verteten sind unter anderem C(Bsp: PostgreSQL, SQLite usw.) oder Java(Elasticsearch, Cassandra, Solr usw.).
+Weitere nennenswerte Primärsprachen sind Go(etcd, InfluxDB) und Scala(SparkSQL). 
+In einigen Fällen bestehen Datenbanken aus einer Kombination von Sprachen. Couchbase sowie CouchDB sind beide zu großen Teilen in Erlang und Javascript geschrieben.
+Häufig ist auch die Kombination aus C++ und C vertreten. Wie oben beschrieben lässt sich nicht eindeutig feststellen, ob eine Datei nun in C, C++ oder als eine Mischung geschrieben ist. 
+Trotzdem lässt sich eindeutig sagen, dass C und C++ einen großen Anteil an vielen der betrachteten Datenbanken ausmachen.
+Somit sind Java, C und C++ die am häufigsten vertretenen Programmiersprachen in den geladenenen Datenbanken.
+
+Verschiedene Programmiersprachen wie Python, GCC Machine Description oder Shell bilden immer nur kleine Anteile einer Datenbankengine. Diese können bspw. für Schnittstellen der Datenbanken zu anderen Programmiersprachen oder als Hilfswerkzeuge genutzt worden sein.
+
+### 1.1 Detaillierte Betrachtung dreier Datenbanken
+
+```{r echo=FALSE, fig.align='center', fig.keep='all', results='hide'}
+# Overview for one databases (usage of programming languages)
+
+selected_databases = c("PostgreSQL", "MySQL", "MongoDB")
 
 ```
 
+Die Menge an verschiedenen Datenbanken ist zu hoch, um für jede eine detallierte Betrachtung anzufertigen. 
+Aus diesem Grund werden stichprobenartig `r length(selected_databases)` Datenbanken ausgewählt, die detalliert betrachtet bzw. verglichen werden sollen.
+Bei interessanten Werten werden auch andere Datenbanken geplottet.
+Es wurden die folgenden Datenbanken ausgewählt:
+
+```{r echo=FALSE, paged.print=TRUE}
+print(selected_databases)
+```
+Noch einmal der Überblick über die Programmiersprachen je Datenbankengine für die drei gewählten Engines:  
+
+```{r echo=FALSE, fig.align='center', fig.keep='all', results='hide'}
+# Overview for one or more databases (usage of programming languages)
+
+overview(db_git_history, selected_databases, width = 0.4)
+
+```
+Alle 3 sind überwiegend C bzw. C++ basiert. Dadurch lassen die Datenbanken sich besser vergleichen. Bei der hohen Anzahl an gemachten Änderungen, ist es beachtlich, dass einige Entwickler fast 25% der gesamten Entwicklung beigetragen haben.     
+
+```{r echo = FALSE}
+short_name = function(authors) {
+  authors = gsub('<.*', '', authors, perl=T)
+  
+  return(authors)
+}
+
+# unique(head(short_name(selected_database$author), 10))
+
+```
+
+In den drei folgenden Diagrammen werden die einzelnen Anteile von den am meisten beitragenden Entwicklern pro Datenbank gezeigt.
+
+```{r echo=FALSE, fig.align='center', fig.height=5, fig.keep='all', fig.width=8, warning=FALSE, results='hide'}
+# Get an overview on the selected author
+
+plot_author_overview_changes = function(git_history, selected_database, author = NULL, width = 0.3, amount_developers = 10){
+  git_history_of_database = git_history[git_history$name == selected_database, ] #& (is.null(author) | git_history$author %in% author)
+
+  if(is.null(author)){
+    author = rank_developer(git_history_of_database, amount_developers)
+  }
+  git_history_for_language = git_history_of_database[git_history_of_database$author %in% author, ]
+  
+  data = prep_data(git_history_of_database,
+          keep_names = selected_database,
+          keep_authors = author,
+          keep_changes = TRUE)
+  
+  #generate shorted labels
+  labels = short_name(data$author)
+  labels = replace(labels,labels == "other_authors","Restliche Autoren")
+  data$author = labels
+  
+  plot <- ggplot(data, aes(fill=author, y=change, x=name)) +
+                 geom_bar(position="fill", stat="identity", width = width) +
+                 theme(axis.text.x = element_text(size = 10)) +
+                 scale_fill_manual(values=colors_vector) +
+                 ggtitle("Verteilung Änderungen pro Autor:", selected_database) +
+                 labs(fill = "Autor:") +
+                 xlab("Name") +
+                 ylab("Anteil Änderungen")
+
+  return(plot)
+}
+
+plot_author_overview_changes(db_git_history, "MongoDB")
+plot_author_overview_changes(db_git_history, "PostgreSQL")
+plot_author_overview_changes(db_git_history, "MySQL", amount_developers = 12)
+```
 
 ### Programmiersprachen pro Entwickler
 
-Im folgenden Diagramm werden die Anteile der eingesetzten Programmiersprachen pro Entwickler betrachtet. Dabei werden die zehn Entwickler mit den meisten Commits betrachtet.
+Im folgenden Diagramm werden die Anteile der eingesetzten Programmiersprachen pro Entwickler betrachtet. Dabei werden die zwölf Entwickler mit den meisten Commits betrachtet.
+
+```{r echo=FALSE, fig.align='center', fig.height=8, fig.keep='all', fig.width=12, warning=FALSE, results='hide'}
+# Get an overview on the selected author
+
+author_overview = function(git_history, selected_database, author = NULL, width = 0.3, amount_developers = 10){
+  git_history_of_database = git_history[git_history$name == selected_database, ] #& (is.null(author) | git_history$author %in% author)
+
+  if(is.null(author)){
+    author = rank_developer(git_history_of_database, amount_developers)
+  }
+  git_history_for_language = git_history_of_database[git_history_of_database$author %in% author, ]
+  
+  languages_to_keep = rank_language(git_history_for_language)
+  
+  data = prep_data(git_history_of_database,
+          keep_names = selected_database,
+          keep_authors = author,
+          keep_programmingLanguages = languages_to_keep,
+          keep_changes = TRUE)
+  
+  #generate shorted labels
+  labels = short_name(data$author)
+  labels = replace(labels,labels == "other_authors","Restliche Autoren")
+  data$author = labels
+  
+  plot <- ggplot(data, aes(fill=programmingLanguage, y=change, x=author)) +
+                 geom_bar(position="fill", stat="identity", width = width) +
+                 theme(axis.text.x = element_text(size = 10, hjust = 1, angle = 45)) +
+                 scale_fill_manual(values=colors_vector) +
+                 ggtitle("Verteilung Programmiersprache pro Autor:", selected_database) +
+                 labs(fill = "Programmiersprache:") +
+                 xlab("Name") +
+                 ylab("Anteil Programmiersprache")
+
+  return(plot)
+}
+```
 
 ```{r echo = FALSE, results='hide', fig.keep='all', fig.align='center'}
-
-plot_pie_chart_developer = function(name, db_git_history, threshold, title){
-  tmp = aggregate(db_git_history$change, by = list(author = db_git_history$author, programmingLanguage = db_git_history$programmingLanguage), FUN = sum)
-
-  tmp = tmp[tmp$author == name,]
-  tmp$author = NULL
-  tmp = tmp[!(tmp$programmingLanguage == "unknown"),]
-  tmp$x = abs(tmp$x)
-  tmp_sum = sum(tmp$x)
-
-  tmp = mutate(tmp, x = x / tmp_sum * 100)
-
-  add_df = data.frame("others" , sum(tmp[tmp$x <= threshold,]$x))
-  names(add_df) = c("programmingLanguage", "x")
-
-  tmp = tmp[tmp$x > threshold,]
+dev_per_pl = function(git_history, selected_database, language = NULL, amount_developer = 10, amount_languages_to_keep = 10L){
+  git_history_of_database = git_history[git_history$name == selected_database, ]
+  db_name = unique(git_history_of_database$name)
   
-  tmp = rbind(tmp, add_df)
+  if(is.null(language)){
+    language = rank_language(git_history, amount_languages_to_keep)
+  }
+  git_history_for_developer = git_history_of_database[git_history_of_database$programmingLanguage %in% language, ]
 
-  bp<- ggplot(tmp, aes(x="", y=x, fill=programmingLanguage))+
-  geom_bar(width = 1, stat = "identity")
-
-  pie <- bp + coord_polar("y", start=0)
+  test <<-git_history_for_developer
   
-  return(pie + scale_fill_brewer(palette = theme) + ggtitle(title))
+  developers = rank_developer(git_history_for_developer, amount_developer)
+  
+  data = prep_data(git_history_of_database,
+            keep_author = developers,
+            keep_programmingLanguages = language,
+            keep_changes = TRUE)
+
+  tmp = aggregate(data[, c("change"), drop=FALSE], by = list(author = data$author, programmingLanguage = data$programmingLanguage), FUN = sum)
+  
+  #generate ylabels
+  ylabels = tmp$author
+  ylabels = short_name(ylabels)
+  ylabels = replace(ylabels,ylabels == "other_authors","Restliche Autoren")
+  tmp$author = ylabels
+  
+  #generate xlabels
+  xlabels = as.character(tmp$programmingLanguage)
+  xlabels = replace(xlabels, xlabels == "other_pl","Restl. Sprachen")
+  tmp$programmingLanguage = xlabels
+  
+  plot <- ggplot(tmp, aes(fill= author, y=change, x=programmingLanguage)) +
+                 geom_bar(position="fill", stat="identity") + 
+                 theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+                 scale_fill_manual(values=colors_vector) +
+                 labs(fill = "Autor:") +
+                 xlab("Programmiersprache") +
+                 ylab("Anteil durch Autor") +
+                 ggtitle("Verteilung der Autoren auf Programmiersprachen:", db_name)
+
+  return(plot)
 }
-
- rank_developer = aggregate(db_git_history[, c("change"), drop=FALSE], by = list(author = db_git_history$author, commit = db_git_history$commit), FUN = sum)
- 
-rank_developer = rank_developer[!(rank_developer$author == "Nobody"),]
-
-rank_developer = count(rank_developer, author)
-rank_developer = rank_developer[order(-rank_developer$n),]
-rank_developer = head(rank_developer, 10)
-
-lapply(rank_developer$author, function(name) plot_pie_chart_developer(name, db_git_history, 2, paste(name, ": Proportion of Programming Languages" ,sep = "")))
-
-rm(rank_developer)
 
 ```
-### Entwickler pro Programmiersprachen
 
-In den folgenden Diagrammen wird der umgekehrte Fall zu den vorherigen Bilder gezeigt. Hier werden die Programmiersprachen und der Verteilung anteilig auf die einzelnen Entwickler betrachtet. Auch hier werden die zehn Programmiersprachen betrachtet, welche in den meisten Commits vorhanden sind.
+### MongoDB
 
-```{r echo = FALSE, results='hide', fig.keep='all'}
+```{r echo=FALSE, fig.align='center', fig.height=8, fig.keep='all', fig.width=12, warning=FALSE, results='hide'}
+author_overview(db_git_history, "MongoDB", amount_developers = 12, width = 0.9)
 
-plot_pie_chart_language = function(name, db_git_history, threshold, title){
-  tmp = aggregate(db_git_history$change, by = list(author = db_git_history$author, programmingLanguage = db_git_history$programmingLanguage), FUN = sum)
+```
+MongoDB hat hauptsächlich C/C++ Entwickler mit den meisten Beiträgen. In Anbetracht der Anteile von C/C++ an MongoDB ist dies jedoch zu erwarten. Interessant ist jedoch, dass die restlichen Autoren wesentlich mehr in JavaScript beigetragen haben. 
+### Entwickler pro Programmiersprache für MongoDB
 
-  tmp = tmp[tmp$programmingLanguage == name,]
-  tmp$programmingLanguage = NULL
-  tmp = tmp[!(tmp$author == "Nobody"),]
-  tmp$x = abs(tmp$x)
-  tmp_sum = sum(tmp$x)
+```{r echo=FALSE, fig.align='center', fig.height=8, fig.keep='all', fig.width=12, warning=FALSE, results='hide'}
+dev_per_pl(db_git_history, "MongoDB", c("C", "C++"), 10)
+dev_per_pl(db_git_history, "MongoDB", c("JavaScript"))
+```
+Hier wird nochmal deutlich, dass die Top-Entwickler den größten Anteil C/C++ stemmen, jedoch wenig Anteil an anderen Sprachen haben.  
+
+### Detail-Ansicht interessante Autoren in MongoDB
+
+```{r echo=FALSE, fig.height=8, fig.width=12, warning=FALSE}
+author_overview(db_git_history, "MongoDB", c("Raymond Jacobson <raymond.jacobson@10gen.com>","Gabriel Russell <gabriel.russell@mongodb.com>", "Eliot Horowitz <eliot@10gen.com>", "Mark Benvenuto <mark.benvenuto@mongodb.com>"), width = 0.6)
+```
+
+### PostgreSQL
+
+```{r echo=FALSE, fig.align='center', fig.height=8, fig.keep='all', fig.width=12, warning=FALSE, results='hide'}
+author_overview(db_git_history, "PostgreSQL", amount_developers = 12, width = 0.9)
+
+```
+
+PostgreSQL ist stark C lastig. Auch hier sind die Top-Entwickler stark mit C belegt.  
+
+### Detail-Ansicht interessante Autoren in PostgreSQL
+
+```{r echo=FALSE, fig.height=8, fig.width=12, warning=FALSE}
+author_overview(db_git_history, "PostgreSQL", c("Tom Lane <tgl@sss.pgh.pa.us>", "Marc G. Fournier <scrappy@hub.org>", "Alvaro Herrera <alvherre@alvh.no-ip.org>", "Michael Meskes <meskes@postgresql.org>"), width = 0.6)
+```
+
+Auffällig ist hier die fast deckungsgleiche Fläche zwischen C und den restlichen Programmiersprachenanteilen.
+
+### MySQL
+
+```{r echo=FALSE, fig.align='center', fig.height=8, fig.keep='all', fig.width=12, warning=FALSE, results='hide'}
+author_overview(db_git_history, "MySQL", amount_developers = 12, width = 0.9)
+```
+
+Die meisten Entwickler in MySQL sind C/C++ lastig. Auffällig sind hier jedoch zum einen ein Assembly Entwickler, zum anderen zwei Entwickler für Jasmin/JavaScript.  
+
+### Entwickler pro Programmiersprache für MySQL
+
+```{r echo=FALSE, fig.align='center', fig.height=8, fig.keep='all', fig.width=12, warning=FALSE, results='hide'}
+dev_per_pl(db_git_history, "MySQL", c("C", "C++"), 14)
+dev_per_pl(db_git_history, "MySQL", c("Assembly"),8)
+dev_per_pl(db_git_history, "MySQL", c("Jasmin","JavaScript"), 8)
+```
+### Detail-Ansicht interessante Autoren in MySQL
+
+```{r echo=FALSE, fig.height=8, fig.width=12, warning=FALSE}
+author_overview(db_git_history, "MySQL", c("brian@zim.(none) <>","magnus@neptunus.(none) <>"), width = 0.4)
+author_overview(db_git_history, "MySQL", c("Mikael RonstrÃ¶m <mikael.ronstrom@oracle.com>", "John David Duncan <jdd@mysql.com>", "Dyre Tjeldvoll <Dyre.Tjeldvoll@oracle.com>"), width = 0.4)
+author_overview(db_git_history, "MySQL", "hhunger@hh-nb.hungers <>", width = 0.4)
+```
+## Entwicklung Anteil Programmiersprache über Zeit
+
+
+```{r echo=FALSE, fig.height=8, fig.width=16, warning=FALSE}
+plot_programming_languages_over_time = function(git_history, selected_databases, colors = NULL, amount_ticks = 2000L, amount_languages_to_keep = 10, subtitle = NULL, ncol = 2) {
+  git_history = git_history[git_history$name == selected_databases, ]
   
-  tmp = mutate(tmp, x = x / tmp_sum * 100)
+  language = rank_language(git_history, amount_languages_to_keep)
+  
+  data = prep_data(git_history,
+                 keep_programmingLanguages = language,
+                 keep_changes = TRUE,
+                 keep_names = selected_databases)
+  
+  data = data[order(as.Date(data$timestamp, format="%Y-%m-%d %h:%m:%s")),]
+  
+  tmp_stamps = unique(data$timestamp)[seq(1L, length(unique(data$timestamp)), amount_ticks)]
+ 
+  plot_frame = data.frame(tmp_stamps)
 
-  add_df = data.frame("others" , sum(tmp[tmp$x <= threshold,]$x))
-  names(add_df) = c("author", "x")
+  subgroups = lapply(tmp_stamps, function(x) get_sum(x, data))
+ 
+  subgroups = do.call(rbind, subgroups)
+  # subgroups_total = subgroups %>% group_by(timestamp) %>% summarize(total_changes = sum(sum_changes))
   
-  tmp = tmp[tmp$x > threshold,]
-  tmp = rbind(tmp, add_df)
+  # subgroups = subgroups %>% group_by(name, timestamp) 
   
-  bp<- ggplot(tmp, aes(x="", y=x, fill=author))+
-  geom_bar(width = 1, stat = "identity")
-  
-  pie <- bp + coord_polar("y", start=0)
+   plot <- ggplot(subgroups, aes(x = as.factor(format(timestamp, "%Y-%m")), y = change, fill = programmingLanguage, group = timestamp)) +
+       geom_col(position = "fill") +
+       labs(fill = "Programmiersprache:") +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 14),strip.text.x = element_text(size = 12)) +
+       scale_x_discrete() +
+       xlab("Datum") +
+       ylab("Anteil Programmiersprache") +
+       facet_wrap(~ name, ncol = ncol)
 
-  return(pie + scale_fill_brewer(palette= theme) + ggtitle(title))
+  if(!is.null(subtitle)){
+    plot = plot + ggtitle("Anteil Programmiersprache je Datenbankengine über Zeit:", subtitle)
+  } 
+   else{
+    if(length(selected_databases) == 1){
+      plot = plot + ggtitle("Anteil Programmiersprache je Datenbankengine über Zeit:", selected_databases[1])
+    }
+    plot = plot + ggtitle("Anteil Programmiersprache je Datenbankengine über Zeit:")
+   }
+   
+  if(!is.null(colors)){
+    plot = plot +  scale_fill_manual(values = colors)
+  }
+  
+  return(plot)
 }
 
-rank_language = aggregate(db_git_history$change, by = list(language = db_git_history$programmingLanguage, commit = db_git_history$commit), FUN = sum)
-rank_language = rank_language[!(rank_language$language == "unknown"),]
-                             
-rank_language = count(rank_language, language)
-rank_language = rank_language[order(-rank_language$n),]
-rank_language = head(rank_language, 10)
+get_sum = function(single_timestamp, data) {
+  subgroup <-  data %>% filter(data$timestamp <= single_timestamp)
+  subgroup = subgroup %>% group_by(name, programmingLanguage, change) %>% summarize(timestamp = single_timestamp)
+}
+```
 
-lapply(rank_language$language, function(name) plot_pie_chart_language(name, db_git_history, 5, paste(name, ": Proportion of Developers using Language" ,sep = "")))
+```{r echo=FALSE, fig.height=16, fig.width=20, message=FALSE, warning=FALSE}
+plot_programming_languages_over_time(db_git_history, c("PostgreSQL", "MySQL", "MongoDB", "Firebird", "Greenplum", "MariaDB", "Memcached", "Redis", "Sphinx", "SQLite"), amount_ticks = 4000L, amount_languages_to_keep = 8, colors = colors_vector, subtitle = "C/C++ - basierte Datenbanken")
+```
 
-rm(rank_language)
+```{r echo=FALSE, fig.height=16, fig.width=18, message=FALSE, warning=FALSE}
+plot_programming_languages_over_time(db_git_history, c("Cassandra", "Elasticsearch", "Hazelcast", "HBase", "Hive", "Neo4j", "Presto", "Solr"), amount_ticks = 3000L, amount_languages_to_keep = 8, colors = colors_vector, subtitle = "Java -basierte Datenbanken")
+```
+
+```{r echo=FALSE, fig.height=16, fig.width=18, message=FALSE, warning=FALSE}
+plot_programming_languages_over_time(db_git_history, c("PostgreSQL", "MySQL", "MongoDB"), amount_ticks = 2000L, amount_languages_to_keep = 8, colors = colors_vector, subtitle = "Primär betrachtete Datenbanken: MongoDB, MySQL, PostgreSQL", ncol = 1)
+```
+
+```{r echo=FALSE, fig.height=8, fig.width=16, message=FALSE, warning=FALSE}
+plot_programming_languages_over_time(db_git_history, c("PostgreSQL"), amount_ticks = 1000L, amount_languages_to_keep = 6, colors = colors_vector)
+
+plot_programming_languages_over_time(db_git_history, c("Elasticsearch"), amount_ticks = 1000L, amount_languages_to_keep = 6, colors = colors_vector)
+
+plot_programming_languages_over_time(db_git_history, c("Solr"), amount_ticks = 1000L, amount_languages_to_keep = 14, colors = colors_vector)
+
+plot_programming_languages_over_time(db_git_history, c("Greenplum"), amount_ticks = 1000L, amount_languages_to_keep = 12, colors = colors_vector)
+
+plot_programming_languages_over_time(db_git_history, c("Neo4j"), amount_ticks = 1000L, amount_languages_to_keep = 12, colors = colors_vector)
+```
+
+```{r echo=FALSE, fig.height=10, fig.width=20, message=FALSE, warning=FALSE}
+plot_programming_languages_over_time(db_git_history, c("MySQL", "MariaDB"), amount_ticks = 2500L, amount_languages_to_keep = 10, colors = colors_vector, ncol = 1)
+```
+
+
+```{r echo=FALSE, fig.height=8, fig.width=12, warning=FALSE}
+plot_programming_languages_over_time_line = function(git_history, selected_databases, colors = NULL, amount_ticks = 2000L, amount_languages_to_keep = 10, width = 0.9) {
+  git_history = git_history[git_history$name == selected_databases, ]
+  
+  language = rank_language(git_history, amount_languages_to_keep)
+  
+  data = prep_data(git_history,
+                 keep_programmingLanguages = language,
+                 keep_changes = TRUE,
+                 keep_names = selected_databases)
+  
+  data = data[order(as.Date(data$timestamp, format="%Y-%m-%d %h:%m:%s")),]
+  
+  tmp_stamps = unique(data$timestamp)[seq(1L, length(unique(data$timestamp)), amount_ticks)]
+ 
+  plot_frame = data.frame(tmp_stamps)
+
+  subgroups = lapply(tmp_stamps, function(x) get_sum(x, data))
+ 
+  subgroups = do.call(rbind, subgroups)
+
+  plot = ggplot(data = subgroups, aes(x = timestamp, y = sum_changes, group = programmingLanguage, color = programmingLanguage)) +
+                scale_y_continuous(breaks = trans_breaks('log10', function(x) 10^x), labels=function(x) format(x, big.mark = ".", scientific = FALSE), trans='log10') +
+                scale_x_datetime(labels = date_format("%Y"), breaks = scales::pretty_breaks(n = 12)) +
+                xlab("Jahr") +
+                ylab("Anzahl Veränderungen") +
+                labs(color = "Programmiersprache:") +
+                ggtitle("Entwicklung Veränderungen über Zeit:") +
+                geom_path() +
+                facet_wrap(~ name, nrow = 2)
+
+  if(!is.null(colors)){
+    plot = plot +  scale_color_manual(values = colors)
+  }
+
+  return(plot)
+}
+
+get_sum = function(single_timestamp, data) {
+  subgroup <-  data %>% filter(data$timestamp <= single_timestamp)
+  subgroup = subgroup %>% group_by(name, programmingLanguage) %>% summarize(sum_changes = sum(change), timestamp = single_timestamp)
+}
+
+plot_programming_languages_over_time_line(db_git_history, c("MongoDB"),amount_ticks = 500L, amount_languages_to_keep = 6, colors = colors_vector)
+
+plot_programming_languages_over_time_line(db_git_history, c("MySQL"),amount_ticks = 500L, amount_languages_to_keep = 6, colors = colors_vector)
+
+plot_programming_languages_over_time_line(db_git_history, c("PostgreSQL"),amount_ticks = 500L, amount_languages_to_keep = 6, colors = colors_vector)
+
+# p <- ggplotly(p)
+# 
+# p[['x']][['layout']][['annotations']][[2]][['x']] <- -0.13
+# g[['x']][['layout']][['annotations']][[2]][['x']] <- -0.08
+# p %>% layout(margin = list(l = 75))
+
 ```
 
 ## Anteil Programmiersprache pro Commit
-Im Folgenden ist ein Ausschnitt der Programmiersprachen-Verteilung über 30 Commits je Commit (unsortiert) dargestellt. Hierbei lässt sich die Anzahl der Änderungen in Lines of Code pro Commit mit zugehöriger Programmiersprache erkennen. 
+Im Folgenden ist ein Ausschnitt der Programmiersprachen-Verteilung über 50 zufällige Commits je Commit dargestellt. Hierbei wird der Anteil der Änderungen in Lines of Code pro Commit in der zugehöriger Programmiersprache als Balkendiagramm gezeichnet. 
 
-```{r echo = FALSE, results='hide', fig.keep='all'}
-tmp = aggregate(db_git_history[, c("change"), drop=FALSE], by = list(programmingLanguage = db_git_history$programmingLanguage, commit = db_git_history$commit), FUN = sum)
+```{r echo=FALSE, fig.align='center', fig.height=5, fig.keep='all', fig.width=25, results='hide'}
 
-tmp = tmp[!(tmp$programmingLanguage == "unknown"),]
+plot_language_per_commit = function(selected_database, git_history = db_git_history, amount = 50) {
+  git_history_of_database = git_history[git_history$name == selected_database, ]
+  
+  languages_to_keep = rank_language(git_history_of_database)
+  
+  selected_commits = sample(unique(git_history_of_database$commit), amount)
 
-tmp$change = abs(tmp$change)
+  data = prep_data(git_history_of_database, 
+                   keep_commits = selected_commits,
+                   keep_programmingLanguages = languages_to_keep,
+                   keep_changes = TRUE)
+  
+  labels = 1
+  labels = seq(labels, length(selected_commits), 1)
+  labels = paste("C", labels, sep = "")
+  labels = c(labels, "Rest- liche Commits")
+  
+  #generate xlabels
+  xlabels = as.character(data$programmingLanguage)
+  xlabels = replace(xlabels, xlabels == "other_pl","Restl. Sprachen")
+  data$programmingLanguage = xlabels
+  
+  
+  plot = ggplot(data, aes(fill = programmingLanguage, y = change, x = commit)) + 
+                geom_bar(position="fill", stat="identity") +
+                theme(text = element_text(size= 17)) +
+                labs(fill = "Programmiersprache:") +
+                scale_fill_manual(values=colors_vector) + 
+                scale_x_discrete(labels = addline_format(labels)) +
+                ggtitle(paste("Anteil Programmiersprachen pro Commit(", length(labels)-1 ,"): ", unique(selected_database), sep = "")) +
+                xlab("Zufälliger Commit") +
+                ylab("Anteil Programmiersprache pro Commit")
+  
+  return(plot)
+}
+```
 
 
-ggplot(head(tmp, 30)) + geom_col(aes(x = commit, y = change, fill = programmingLanguage)) + theme(axis.text.x = element_text(angle = 90, hjust = 2)) +
-  theme(axis.text.x=element_blank()) + scale_fill_brewer(palette= theme)
+```{r echo=FALSE, fig.height=5, fig.width=25, results='hide'}
+plot_language_per_commit("MySQL")
+plot_language_per_commit("PostgreSQL")
+plot_language_per_commit("MongoDB")
+```
+
+Auffällig: Größtenteils 1 Sprache pro Commit.    
+
+Betrachtung der Dichte von Programmiersprache je Commit:
+
+```{r Density & bar plots - progamming Languages per commit, echo=FALSE, fig.align='center', fig.keep='all', paged.print=TRUE, results='hide'}
+# für eine db
+selected_database2 = db_git_history[db_git_history$name %in% selected_databases, ]
+data = prep_data(selected_database2,
+                 keep_names = selected_database2$name,
+                 keep_commits = selected_database2$commit,
+                 keep_programmingLanguages = selected_database2$programmingLanguage)
+
+tmp = aggregate(data$programmingLanguage, by = list(commit = data$commit, name = data$name), FUN=function(x) length(unique(x)))
+
+ggplot(tmp, aes(x = name, y = x)) +
+       geom_boxplot(aes(group = name, fill = name)) +
+       scale_fill_manual(values = colors_databases) +
+       scale_y_continuous(breaks = scales::pretty_breaks(n = 20)) +
+       theme(panel.grid.minor =   element_blank(), panel.grid.major = element_line(colour = "white",size=0.5)) +
+       xlab("Datenbankengine") +
+       ylab("Anzahl Sprachen je Commit") + 
+       ggtitle("Verteilung der Anzahl Programmiersprachen je Commit:")
+
+ggplot(tmp, aes(x=x)) +
+       geom_density(aes(group = name, color=name, fill = name), alpha = 0.1) + 
+       scale_fill_manual(values = colors_databases) +
+       scale_color_manual(values = colors_databases) +
+       expand_limits(x = c(0.5,4.5)) +
+       coord_cartesian(xlim = c(0.5, 4.5), ylim = c(0, 6)) +
+       theme(panel.grid.minor =   element_blank(), panel.grid.major = element_line(colour = "white",size=0.5)) +
+       scale_y_continuous(breaks = scales::pretty_breaks(n = 6)) +
+       xlab("Anzahl Sprachen pro Commit") + 
+       ylab("Dichte") + 
+       ggtitle("Dichte der Anzahl Programmiersprachen je Commit:") 
 
 ```
 
-## Stacked bar graph database language percentage over multiple languages
+Über alle Datenbanken hinweg: 
 
-## Histogram: changes in repo language distribution over time
+```{r echo=FALSE, fig.align='center', fig.height=15, fig.keep='all', fig.width=15, results='hide'}
+# für alle dbs
 
-## Multiline Plot: development language over time 
+data = prep_data(db_git_history,
+                 keep_names = db_git_history$name,
+                 keep_commits = db_git_history$commit,
+                 keep_programmingLanguages = db_git_history$programmingLanguage,
+                 keep_changes = TRUE)
 
-## percentage changes per developer in whole project
+tmp = aggregate(data[, c("programmingLanguage"), drop=FALSE], by = list(name = data$name, commit = data$commit), FUN=function(x) length(unique(x)))
 
-## mean value: developer worked on file per file
+tmp = tmp[tmp$programmingLanguage <= 5,]
 
-## Density plot / komplexere plots
+ggplot(tmp, aes(x=programmingLanguage, group=name, fill=name)) +
+  geom_density() +
+    facet_wrap(~name, ncol=3) +
+    expand_limits(x=c(0.5,4.5)) +
+    coord_cartesian(xlim = c(0.5, 4.5)) +
+    theme(
+      legend.position="none",
+      panel.spacing = unit(0.1, "lines"),
+      axis.ticks.x=element_blank()
+    ) + 
+  xlab("Anzahl Sprachen pro Commit") +
+  ylab("Dichte") +
+  ggtitle("Dichte der Anzahl Programmiersprachen je Commit:")
 
-## Über DB grenzen
+```
+## Hässliches Entlein:
+
+```{r echo=FALSE, fig.align='center', fig.height=8, fig.keep='all', fig.width=12, warning=FALSE, results='hide'}
+# line chart
+db_name = "PostgreSQL"
+
+data2 = db_git_history[db_git_history$name == db_name, ]
+
+data2 = prep_data(data2,
+                  keep_programmingLanguages = c("C", "PLSQL"),
+                  keep_changes = TRUE)
+  
+
+  ggplot(data2, aes(x=timestamp, y=change, group=programmingLanguage, color=programmingLanguage)) +
+    geom_line() 
+
+  
+rm(data2)
+```
+
+
+## 2. Verteilung Programmierer - Bereiche in Dateien
+```{r echo=FALSE, fig.height=8, fig.width=12, paged.print=TRUE}
+plot_amont_files_per_database = function(git_histories, selected_databases, width = 0.3) {
+  git_histories = git_histories[git_histories$name %in% selected_databases, ]
+  
+  data = prep_data(git_histories,
+                 keep_names = git_histories$name,
+                 keep_files = git_histories$file)
+  
+  tmp = data %>% group_by(name) %>% summarize(count_file = n_distinct(file))
+  tmp = tmp[order(-tmp$count_file),]
+  print.data.frame(tmp)
+  
+  #Calculate mean
+  mean = tmp %>% summarize(mean = mean(count_file, na.rm=TRUE))
+  mean_single = mean
+  mean = data.frame(c = 1:length(tmp$name), mean = mean)
+  
+  #Create special color vector
+  color_vector_improved = rep(colors_vector[5], nrow(tmp))
+  names(color_vector_improved) = tmp$name
+  color_vector_improved[names(colors_databases)] = colors_databases
+  
+  plot <- ggplot(tmp, aes(x = reorder(name, -count_file), y = count_file)) + 
+    geom_bar(stat="identity", fill = color_vector_improved) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 12)) +
+    scale_y_continuous(breaks = scales::pretty_breaks(n = 10)) +
+    labs(fill = "Datenbank:") +
+    xlab("Datenbank") + 
+    ylab("Anzahl Dateien") + 
+    ggtitle("Anzahl hinzugefügter Dateien pro Datenbank:") +
+    geom_errorbar(data=mean, aes(x = seq(1,length(tmp$name),1), ymax = mean, ymin = mean),
+               size=0.5, linetype = "longdash", inherit.aes = F, width = 1) +
+    geom_label(aes(label = paste("Mean:",as.character(mean_single)),x = name[nrow(tmp)-3], y = as.numeric(mean_single))) 
+  
+   return(plot)
+}
+
+plot_amont_files_per_database(db_git_history, db_git_history$name)
+```
+
+
+```{r echo=FALSE, fig.height=8, fig.width=12}
+plot_count_developers_per_file = function(git_histories, selected_databases, colors = NA) {
+  git_histories = git_histories[git_histories$name %in% selected_databases, ]
+  
+  data = prep_data(git_histories,
+                 keep_names = git_histories$name,
+                 keep_files = git_histories$file,
+                 keep_authors = git_histories$author)
+  
+  tmp = data %>% group_by(file, name) %>% summarize(count_author = n_distinct(author))
+  
+  max_x = 25
+  min_x = 1
+  
+  plot = ggplot(tmp, aes(x = count_author)) +
+           geom_density(aes(group = name, color = name, fill = name), alpha = 0.1) +
+           expand_limits(x = c(min_x,max_x)) +
+           coord_cartesian(xlim = c(min_x, max_x), ylim = c(0, 0.45)) +
+           theme(panel.grid.minor = element_blank(), panel.grid.major = element_line(colour = "white",size=0.5)) +
+           scale_x_continuous(breaks = c(seq(min_x, 15, 1), seq(15, max_x, 5))) +
+           xlab("Anzahl Autoren") +
+           ylab("Dichte") +
+           labs(fill = "Datenbank:", color = "Datenbank:") +
+           ggtitle("Dichte der Anzahl Autoren je Datei:")
+ 
+  if(!is.null(colors)){
+      plot +  scale_fill_manual(values = colors) +
+          scale_color_manual(values = colors)
+  } 
+
+  return(plot)
+}
+
+plot_count_developers_per_file(db_git_history, selected_databases, colors_databases)
+```
+```{r echo=FALSE, fig.height=6, fig.width=18}
+plot_histogram_count_developers_per_file = function(git_histories, selected_databases) {
+  git_histories = git_histories[git_histories$name %in% selected_databases, ]
+  
+  data = prep_data(git_histories,
+                 keep_names = git_histories$name,
+                 keep_files = git_histories$file,
+                 keep_authors = git_histories$author)
+  
+  tmp = data %>% group_by(file, name) %>% summarize(count_author = n_distinct(author))
+  
+  max_x = 15
+  min_x = 1
+  
+  plot = ggplot(tmp, aes(x = count_author)) +
+           geom_histogram(aes(group = name, color=name, fill = name), alpha = 0.05, binwidth=1, position = "dodge2") +
+           scale_fill_manual(values = colors_databases) +
+           scale_color_manual(values = colors_databases) +
+           expand_limits(x = c(min_x,max_x)) +
+           coord_cartesian(xlim = c(min_x, max_x)) +
+           theme(panel.grid.minor = element_blank(), panel.grid.major = element_line(colour = "white",size=0.5)) +
+           scale_x_continuous(breaks = seq(min_x, 15, 1)) +
+           xlab("Anzahl Autoren") +
+           ylab("Anzahl Dateien") +
+           labs(fill = "Datenbank:", color = "Datenbank:") +
+           ggtitle("Histogramm: Anzahl Autoren je Datei:") +
+           scale_y_continuous(breaks = scales::pretty_breaks(n = 10)) 
+           #+ facet_wrap(~ name, ncol=3)
+           
+  return(plot)
+}
+
+plot_histogram_count_developers_per_file(db_git_history, selected_databases)
+```
+
+```{r echo=FALSE, fig.height=8, fig.width=12}
+plot_file_count_over_time = function(git_histories, selected_databases, colors = NULL, amount_ticks = 1000L) {
+  git_histories = git_histories[git_histories$name %in% selected_databases, ]
+  
+  data = prep_data(git_histories,
+                 keep_files = git_histories$file,
+                 keep_names = selected_databases)
+  
+  data = data[order(as.Date(data$timestamp, format="%Y-%m-%d %h:%m:%s")),]
+  
+  tmp_stamps = unique(data$timestamp)[seq(1L, length(unique(data$timestamp)), amount_ticks)]
+  
+  plot_frame = data.frame(tmp_stamps)
+
+  subgroups = lapply(tmp_stamps, function(x) get_count(x, data))
+  subgroups = do.call(rbind, subgroups)
+
+  plot = ggplot(data = subgroups, aes(x = timestamp, y = count_file, group = name, color = name)) +
+                scale_y_continuous(breaks = scales::pretty_breaks(n = 12)) +
+                scale_x_datetime(labels = date_format("%Y"), breaks = scales::pretty_breaks(n = 10)) +
+                xlab("Jahr") +
+                ylab("Anzahl Dateien") +
+                labs(color = "Datenbank:") +
+                ggtitle("Entwicklung Anzahl hinzugefügter Dateien über Zeit:") +
+                geom_line()
+  
+  if(!is.null(colors)){
+    plot = plot +  scale_color_manual(values = colors) 
+  } 
+  
+  return(plot)
+}
+
+get_count = function(single_timestamp, data) {
+  subgroup <-  data %>% filter(data$timestamp <= single_timestamp)
+  subgroup = subgroup %>% group_by(name) %>% summarize(count_file = n_distinct(file), timestamp = single_timestamp)
+  # view(subgroup)
+}
+
+plot_file_count_over_time(db_git_history, selected_databases, colors = colors_databases)
+```
+
+```{r echo=FALSE, fig.height=8, fig.width=12}
+plot_file_count_over_time(db_git_history, db_git_history$name)
+```
+
+## Hierarchie - Betrachtung der Dateien 
+```{r echo=FALSE, fig.height=15, fig.width=15, message=FALSE, warning=FALSE}
+
+convert_files_to_tree = function(git_histories, selected_database, max_depth = 2L, label_count = 20, circle = F){
+  root_name = "project_root"
+  
+  git_histories = git_histories[git_histories$name %in% selected_database, ]
+  
+  data = prep_data(git_histories,
+                 keep_names = unique(git_histories$name),
+                 keep_files = unique(git_histories$file),
+                 keep_commits = unique(git_histories$commit),
+                 keep_authors = unique(git_histories$author))
+  
+  #remove unused columns
+  data$name = NULL
+  data$timestamp = NULL 
+  
+  #get amount of authors for whole project
+  all_authors_amount = data %>% summarize(count_author = n_distinct(author)) %>% unlist
+
+  nodes = data %>% group_by(file) %>% summarize(count_author = n_distinct(author), count_commit = n_distinct(commit)) %>% rename(name = file)
+  
+  file_count = nrow(nodes)
+  leaf = rep(TRUE, file_count)
+  nodes$leaf = leaf
+
+  directory_names = nodes$name %>% as.character %>% sapply(function(x) get_directories(x)) %>% unlist(use.names = F) %>% unique
+  
+  #create dataframe for directories
+  directories = data.frame(name=directory_names, stringsAsFactors = F)
+  leaf = rep(FALSE, length(directory_names))
+  directories$leaf = leaf
+  
+  from = directories$name %>% str_split(pattern = "/") %>% sapply(function(x) paste(head(x, n=-1), collapse = "/"))
+  directories$from = sub("^$", root_name,from)
+  
+  from = nodes$name %>% str_split(pattern = "/") %>% sapply(function(x) paste(head(x, n=-1), collapse = "/"))
+  nodes$from = sub("^$", root_name,from)
+  
+  #add imaginary root
+  nodes = nodes %>% add_row(name = root_name, leaf = F) #count_author = all_authors_amount,
+
+  nodes = bind_rows(nodes, directories)
+  nodes$count_author[is.na(nodes$count_author)] = 0
+  nodes$count_author[is.na(nodes$count_commit)] = 0
+  
+  max_value = max(nodes$count_commit)
+  
+  tittle_add = " - Knotengröße: Anzahl Entwickler"
+  
+  message = "Anzahl Commits:"
+
+  
+  
+  if(label_count > 0){
+   label_count = label_count + 1
+   ntile_label = nrow(nodes)/label_count
+   ntile_label = ntile_label %>% ceiling
+   nodes$ntile = ntile(nodes$count_author, ntile_label) %>% as.numeric
+  }
+  
+  edges = nodes %>% select(from, name) %>% unique %>% rename(to = name)
+  edges = edges[!is.na(edges$from) & !is.na(edges$to),]
+
+  graph <- graph_from_data_frame(edges, directed = T, vertices = nodes)
+
+  if(circle){
+    plot = ggraph(graph, layout = "circlepack", weight = count_author) +
+      geom_node_circle(aes(fill = count_commit), size = 0.1) +
+      scale_fill_viridis(option="plasma", begin = 0.1, limits = c(1,max_value)) +
+      ggtitle(paste("Circlepack: Anzahl Autoren pro Datei", tittle_add), selected_database) +
+      geom_node_label(aes(filter =  depth < 2 & !leaf, label = name),fill = '#AAAAAA',color = "#000000",  size = 5, repel = T) +
+      labs(fill = message) +
+      coord_fixed()
+  }
+  else{
+    plot = ggraph(graph, 'treemap', weight = count_author) +
+      geom_node_tile(aes(filter = leaf, fill = count_commit, alpha = depth), color = NA) +
+      geom_node_tile(aes(size = depth), colour = 'white') +
+      scale_fill_viridis(option="plasma", begin = 0.1, limits = c(1,max_value)) +
+      geom_node_label(aes(filter =  depth < 2 & !leaf, label = name),fill = '#AAAAAA',color = "#000000",  size = 7, repel = T) +
+      ggtitle(paste("Treemap: Anzahl Autoren pro Datei", tittle_add), selected_database) +
+      scale_size(range = c(6, 0.4), guide = 'none') +
+      scale_alpha(range = c(1, 0.5), guide = 'none') +
+      labs(fill = message) 
+  }
+
+  if(label_count > 0){
+     plot = plot + geom_node_label(aes(label = name, filter = (ntile == ntile_label)), repel = T)
+  }
+  # ggraph(graph, 'dendrogram', circular = TRUE) +
+  # geom_edge_elbow() +
+  # coord_fixed()
+
+return(plot)
+}
+
+get_directories = function(file_path){
+  file_path = file_path %>% str_split(pattern = "/")
+  file_path = file_path %>% unlist
+
+  if(file_path %>% length < 2) {
+    return(NULL)
+  }
+  
+  directories = c()
+  for(i in 1:(length(file_path)-1)) {
+    directories = c(directories, paste(head(file_path, n = i), collapse = "/"))
+  }
+  return(directories)
+}
+# get_directories("devtools/bench_noreply.pl")
+
+convert_files_to_tree(db_git_history, "Memcached", label_count = 10, circle = T)
+convert_files_to_tree(db_git_history, "Memcached", label_count = 15, circle = F)
+
+```
+```{r echo=FALSE, fig.height=20, fig.width=20, message=FALSE, warning=FALSE}
+convert_files_to_tree(db_git_history, "Redis", label_count = 25)
+```
+
+
+```{r echo=FALSE, fig.height=18, fig.width=18, message=FALSE, warning=FALSE}
+convert_files_to_tree(db_git_history, "PostgreSQL", label_count = 25)
+```
+
+```{r echo=FALSE, fig.height=20, fig.width=20, message=FALSE, warning=FALSE}
+convert_files_to_tree(db_git_history, "MySQL", label_count = 25)
+```
+
+```{r echo=FALSE, fig.height=20, fig.width=20, message=FALSE, warning=FALSE}
+convert_files_to_tree(db_git_history, "MongoDB", label_count = 25)
+```
+## Weitere Ideen:
+
+- Matrix Plot (quasi heatmap) : wann treten Änderungen auf Jahr x Monat 
+- Treemap: Fill by Author
+- Timeline: erster Beitrag eines Autors

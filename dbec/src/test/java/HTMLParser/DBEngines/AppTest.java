@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 class AppTest {
@@ -36,6 +37,7 @@ class AppTest {
 		assertEquals(parseDBEngine.get(0).length ,36);
 	}
 	
+	@Disabled
 	@Test
 	void parseDBEngineTest() throws IOException, Exception {		
 		Set<String> parseDBEngine = App.getDBs();		

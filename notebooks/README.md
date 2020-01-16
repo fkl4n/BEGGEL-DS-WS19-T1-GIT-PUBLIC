@@ -20,7 +20,7 @@ Please use only lower-case letters and underscores for directory and file names.
 ### Import .csv files 
 To import data, there is already fully functional R code available. After creating a notebook,
 you can use the following code to import the meta information of db-engines ranking and a git-history file,
- created by the table exporter. If neccessary, you can import all .csv files, that are available in the ./workspace directory:
+ created by the table exporter. If neccessary, you can import all .csv files, that are available in the ./workspace/histories directory:
  
 ```
 #Load db_info .csv file

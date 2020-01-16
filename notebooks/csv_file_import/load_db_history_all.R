@@ -22,7 +22,7 @@ load_db_history_all = function(path_to_check = "../../Workspace/histories", file
   
   language_levels_with_na = levels(db_git_history$programmingLanguage)
   db_git_history$programmingLanguage = addNA(db_git_history$programmingLanguage)
-  levels(db_git_history$programmingLanguage) = c(language_levels_with_na, "unkown")
+  levels(db_git_history$programmingLanguage) = c(language_levels_with_na, "unknown")
   
   # Flatten the resulting List to a vector
   db_git_history["programmingLanguage"] = unlist(db_git_history$programmingLanguage, use.names=FALSE)

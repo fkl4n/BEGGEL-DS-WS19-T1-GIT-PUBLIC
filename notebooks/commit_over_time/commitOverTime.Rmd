@@ -32,8 +32,8 @@ Einlesen der Daten aus dem CSV sowie umwandeln der Zeitdaten in ein R Zeitformat
 ```{r}
 #Load function to import db_history .csv file
 #usage: load_db_history("path")
-source("../csv_file_import/load_db_history.R")
-db_git_history_Postgre = load_db_history(input_path = "../../Workspace/PostgreSQL.csv")
+source("../csv_file_import/load_db_history2.R")
+db_git_history_Postgre = load_db_history2(input_path = "../../Workspace/histories/PostgreSQL.csv")
 db_git_history_Postgre["timestamp"] = lapply(db_git_history_Postgre["timestamp"],function(x) as.Date(x, format='%Y-%m-%d') )
 
 ```
@@ -152,7 +152,7 @@ PostgrePlotMonthlyFacet
 Die Einlese- und Bearbeitungsmethoden sind gleich 
 ```{r}
 
-db_git_history_MySQL = load_db_history(input_path = "../../Workspace/MySQL.csv")
+db_git_history_MySQL = load_db_history2(input_path = "../../Workspace/histories/MySQL.csv")
 db_git_history_MySQL["timestamp"] = lapply(db_git_history_MySQL["timestamp"], function(x) as.Date(x, format='%Y-%m-%d'))
 ```
 
@@ -242,7 +242,7 @@ MySQLPlotMonthlyFacet
 
 # Mongo 
 ```{r}
-db_git_history_MongoDB = load_db_history(input_path = "../../Workspace/MongoDB.csv")
+db_git_history_MongoDB = load_db_history2(input_path = "../../Workspace/histories/MongoDB.csv")
 db_git_history_MongoDB["timestamp"] = lapply(db_git_history_MongoDB["timestamp"], function(x) as.Date(x, format='%Y-%m-%d'))
 ```
 

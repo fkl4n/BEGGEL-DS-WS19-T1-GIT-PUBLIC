@@ -6,8 +6,8 @@ This program is used to collect data from a database ranking provided on the web
 Build the application using Maven and the provided POM.xml file. Execute the newly created .jar file to execute the parser.
 
 ``` bash
-mvn package
-java -jar target/DBEngines-0.0.1-SNAPSHOT.jar
+mvn clean package
+java -jar target/DBEngines-0.0.1-SNAPSHOT-jar-with-dependencies.jar
 ```
 The program collects all database entries and the corresponding URLs from https://db-engines.com/de/systems.
 
